@@ -1,0 +1,58 @@
+<!--
+    DTD for Efreet DAO Configuration File
+-->
+
+<!-- ========== Defined Types ============================================= -->
+
+<!-- ========== Top Level Elements ======================================== -->
+
+<!-- The "dao" element is the root of the DAO configuration file
+     hierarchy, and contains nested elements for all of the other
+     configuration settings.
+-->
+<!ELEMENT dao (query*)>
+<!ATTLIST dao id             ID             #IMPLIED>
+<!ATTLIST dao name          CDATA           #IMPLIED>
+<!ATTLIST dao datasource    CDATA           #REQUIRED>
+
+<!-- The "query" element represents the statements to be executed by
+     the database 
+
+     PCDATA  - The query is described as a text element inside a CDATA.
+     
+     name - name of the query to be used by the calling program
+            as an alias. Ex: executeQuery(thisName)
+    
+     type - implicito "query" serve como indicativo do tipo de
+            statement (query, include, update, delete)
+     -->
+<!ELEMENT query (#PCDATA|parameter|result)*>
+<!ATTLIST query  id             ID             #IMPLIED>
+<!ATTLIST query  name          CDATA           #REQUIRED>
+<!ATTLIST query  type          CDATA           #IMPLIED>
+
+<!-- ========== Subordinate Elements ====================================== -->
+<!-- The "parameter" element represents the parameters to be passed
+     to the execute method to replace the "?" in the query statements
+     
+     index - sequential representing the same order of appearance
+             of the "?" to be replaced
+     type - can assume one of the following values :
+        NUMBER - for any kind of numerical result
+        CHAR - for any kind of character string result
+        DATE - for date, time and timestamp result
+-->
+<!ELEMENT parameter EMPTY>
+<!ATTLIST parameter index   CDATA   #REQUIRED>
+<!ATTLIST parameter type   CDATA   #REQUIRED>
+
+<!-- The "result" element represents the mapping for the return of
+     each column in the result of the query statement 
+    
+    PCDATA - the name to be used to retrieve the element from
+            a QueryResult object.
+    
+     index - the sequence the element is returned
+-->
+<!ELEMENT result (#PCDATA)>
+<!ATTLIST result index  CDATA   #REQUIRED>

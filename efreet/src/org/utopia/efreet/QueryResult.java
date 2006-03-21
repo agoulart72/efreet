@@ -5,10 +5,10 @@ import java.util.HashMap;
 import java.math.BigDecimal;
 import java.math.BigInteger;
 
-import java.util.Collection;
-import java.util.ArrayList;
+//import java.util.Collection;
+//import java.util.ArrayList;
 import java.util.Calendar;
-import java.util.Date;
+//import java.util.Date;
 
 /**
  * This class represents a single result row from a resultset
@@ -163,6 +163,20 @@ public class QueryResult
 	if (!(retorno instanceof Double)) throw new DAOException("Incorrect Type ("+nomeColuna+")","error.DAO.invalidType",nomeColuna);
 	return ((Double)retorno).doubleValue(); 
     }
+    
+    public java.util.Date getDate(String nomeColuna) throws DAOException
+    {
+    	Object retorno = get(nomeColuna);
+    	if (retorno == null) return null;
+    	if (retorno instanceof java.util.Date) {
+    	    return (java.util.Date) retorno;
+    	}
+    	if (retorno instanceof java.sql.Timestamp) {
+    	    return new java.util.Date(((java.sql.Timestamp) retorno).getTime());
+    	}
+    	return new java.util.Date();
+    }
+    
     /**
      * Special one to convert from date to string
      */

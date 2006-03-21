@@ -1,5 +1,5 @@
 /*
- * $Id: DAOException.java,v 1.1.1.1 2005-03-21 00:59:58 agoulart Exp $
+ * $Id: DAOException.java,v 1.2 2006-03-21 01:43:39 agoulart Exp $
  */
 package org.utopia.efreet;
 
@@ -10,7 +10,12 @@ import org.utopia.common.ResourceableException;
  */
 public class DAOException extends ResourceableException {
 
-    public DAOException(String message) {
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -2598247086148642895L;
+
+	public DAOException(String message) {
         super(message);
     }
 

@@ -1,0 +1,54 @@
+<?xml version="1.0"?>
+<xs:schema xmlns:xs="http://www.w3.org/2001/XMLSchema"
+targetNamespace="http://www.w3schools.com"
+xmlns="http://www.w3schools.com"
+elementFormDefault="qualified">
+<xs:element name="dao">
+    <xs:complexType>
+	  <xs:attribute name="id" type="xs:positiveInteger"/> 
+	  <xs:attribute name="name" type="xs:string"/> 
+	  <xs:attribute name="datasource" type="xs:string" use="required"/> 
+      <xs:sequence>
+  	    <xs:element name="query" type="queryType" />
+      </xs:sequence>
+    </xs:complexType>
+</xs:element>
+
+<xs:complexType name="xs:queryType">
+	<xs:attribute name="id" type="xs:positiveInteger"/> 
+	<xs:attribute name="name" type="xs:string" use="required"/> 
+	<xs:attribute name="type"> 
+		<xs:simpleType name="qryType">
+			 <xs:restriction base="xs:string">
+				<xs:enumeration value="query"/>
+				<xs:enumeration value="insert"/>
+				<xs:enumeration value="update"/>
+				<xs:enumeration value="delete"/>
+			 </xs:restriction>
+		</xs:simpleType>
+	</xs:attribute>
+	<xs:simplecontent/>
+	<xs:sequence>
+		<xs:element name="parameter" type="parameterType"/>
+	    <xs:element name="result" type="resultType" />
+    </xs:sequence>
+</xs:complexType>
+
+<xs:complexType name="xs:parameterType">
+	<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
+	<xs:attribute name="type" use="required"> 
+		<xs:simpleType name="paramType">
+			 <xs:restriction base="xs:string">
+				<xs:enumeration value="number"/>
+				<xs:enumeration value="char"/>
+				<xs:enumeration value="date"/>
+			 </xs:restriction>
+	</xs:attribute>
+</xs:complexType>
+
+<xs:complexType name="xs:resultType">
+	<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
+	<xs:simplecontent/>
+</xs:complexType>
+
+</xs:schema>

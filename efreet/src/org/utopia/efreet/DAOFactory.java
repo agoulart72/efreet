@@ -1,18 +1,26 @@
 package org.utopia.efreet;
 
-import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 
 import java.net.URL;
 
+import java.sql.Types;
 import java.util.Hashtable;
 import java.util.Iterator;
 
+import javax.naming.Context;
+import javax.naming.InitialContext;
+import javax.naming.NameNotFoundException;
+import javax.naming.NamingException;
+
 import org.jdom.input.*;
-import org.jdom.Attribute;
 import org.jdom.Document;
 import org.jdom.Element;
 import org.jdom.JDOMException;
+
+import org.apache.log4j.Logger;
+
 
 /**
  * This class is the main factory for the DAO creation, it reads and parses
@@ -21,6 +29,8 @@ import org.jdom.JDOMException;
 public class DAOFactory
 {
     private static Hashtable models = null;    
+
+    static Logger logger = Logger.getLogger(DAOFactory.class.getName());
 
     /**
      * Main function to create DAOs <br>
@@ -33,6 +43,7 @@ public class DAOFactory
         throws EfreetException
     {
         if (name == null) {
+        	logger.error("DAO name is not defined");
             throw new EfreetException("DAO name is not defined");
         }
 
@@ -46,15 +57,62 @@ public class DAOFactory
         }
 
         if (dm == null) {
+        	logger.error("DAO model is not defined");
             throw new EfreetException("DAO model is not defined");
         }
 
         DataAccessObject dao = new DataAccessObject();
         dao.setModel(dm);
-
+        
         return dao;
     }
 
+    /**
+     * Recover the URL based on the name of the DAO
+     * it searches the current classloader first (for non-web applications)
+     * then it searches the context for any specific user variable
+     * then it searches in the contextloader 
+     * @param name
+     * @return
+     * @throws EfreetException
+     */
+    private static URL getURL(String name) throws EfreetException {
+
+        URL url = ClassLoader.getSystemResource(name + ".xml");
+
+    	try {
+            if (url == null) {
+            	try {
+            		Context initContext = new InitialContext();
+            		Context envContext  = (Context)initContext.lookup("java:/comp/env");
+            		String xmlFileDir = (String) envContext.lookup("xml/efreet");
+            		url = new URL("file:" + xmlFileDir + "/" + name + ".xml");
+            	} catch (NameNotFoundException nnfe) {
+            		logger.warn("Name not found on context ");
+            	} catch (NamingException e) {
+            		logger.error("Error retrieving Context : ", e);
+            	}
+            }
+            try {
+            	if (url != null) {
+            		url.openConnection();
+            	}
+            } catch (FileNotFoundException fnfe) {
+            	url = null;
+			}
+            if (url == null) {
+//            long dt_modified = url.openConnection().getLastModified();
+            	url = Thread.currentThread().getContextClassLoader().getResource(name + ".xml");
+            }
+
+        } catch (IOException ioe) {
+        	logger.error("Error reading XML file", ioe);
+            throw new EfreetException(ioe.getMessage());
+        }
+    	
+        return url;
+    }
+    
     /**
      * Read an XML file for the model for one DAO. <br>
      * It'll search the file as a resource. <br>
@@ -64,32 +122,18 @@ public class DAOFactory
      * @return a new DAOModel based on the XML
      */
     public static DAOModel readXML(String name) throws EfreetException {
-        try {
-            URL url = ClassLoader.getSystemResource(name + ".xml");        
+    	
+    	
+    	URL url = getURL(name);
+            
+    	try {
             SAXBuilder saxb = new SAXBuilder();
             Document jdomtree = saxb.build(url);
             Element dao = jdomtree.getRootElement();
             DAOModel model = new DAOModel();
             // Parsing
-            // Read Columns
-            model.setTableName(dao.getAttributeValue("table"));
-            Iterator columnList = dao.getChildren("column").iterator();
-            while (columnList.hasNext()) {
-                Object proximo = columnList.next();
-                if (proximo instanceof Element) {
-                    Element thisCol = (Element) proximo;
-                    Column novaColuna = new Column(thisCol.getAttributeValue("name"));
-                    Attribute req = thisCol.getAttribute("required");
-                    novaColuna.setRequired(req != null && req.getBooleanValue());
-                    Attribute size = thisCol.getAttribute("size");
-                    // TODO - set column size (precision, scale)
-                    Attribute typeC = thisCol.getAttribute("type");
-                    // TODO - set type code
-                    novaColuna.setDefault(thisCol.getTextNormalize());
-                    model.addColumn(novaColuna);
-                }
-            }
-
+            model.setDataSource(dao.getAttributeValue("datasource"));
+            
             // Read Queries
             Iterator queryList = dao.getChildren("query").iterator();
             while (queryList.hasNext()) {
@@ -98,18 +142,48 @@ public class DAOFactory
                     Element thisQuery = (Element) proximo;
                     Query q = new Query();
                     q.setName(thisQuery.getAttributeValue("name"));
+                    String qType = thisQuery.getAttributeValue("type");
+                    if (qType != null) {
+	                    if (qType.equalsIgnoreCase("query")) {
+	                    	q.setType(Query.Q_QUERY);
+	                    } else if (qType.equalsIgnoreCase("update")) {
+	                    	q.setType(Query.Q_UPDATE);
+	                    } else if (qType.equalsIgnoreCase("procedure")) {
+	                    	q.setType(Query.Q_PROCEDURE);
+	                    }
+                    }
                     q.setStatement(thisQuery.getTextNormalize());
                     Iterator paramList = thisQuery.getChildren("parameter").iterator();
                     while (paramList.hasNext()) {
                         Element thisParam = (Element) paramList.next();
-                        // TODO - convert
-                        q.addParameter(0);//thisParam.getAttributeValue("type"));
+                        String pType = thisParam.getAttributeValue("type");
+                        if (pType != null) {
+	                        if (pType.equalsIgnoreCase("number") || pType.equalsIgnoreCase("numeric")) {
+	                        	q.addParameter(Types.NUMERIC);
+	                        } else if (pType.equalsIgnoreCase("char")) {
+	                        	q.addParameter(Types.CHAR);
+	                        } else if (pType.equalsIgnoreCase("date")) {
+	                        	q.addParameter(Types.DATE);
+	                        } else {
+	                        	q.addParameter(Types.JAVA_OBJECT);
+	                        }
+                        } else {
+                        	q.addParameter(Types.JAVA_OBJECT);
+                        }
                     }
 
                     Iterator resultList = thisQuery.getChildren("result").iterator();
                     while (resultList.hasNext()) {
                         Element thisResult = (Element) resultList.next();
-                        q.addResult(thisResult.getTextNormalize());
+                        String posResult = thisResult.getAttributeValue("index");
+                        if (posResult != null) {
+                        	try {
+                        		int posR = Integer.parseInt(posResult);
+                        		q.addResultAt(thisResult.getTextNormalize(), posR);
+                        	} catch (NumberFormatException e) {
+								logger.warn("Error on XML file result ", e);
+							}
+                        }
                     }
                     model.addQuery(q);
                 }
@@ -118,8 +192,10 @@ public class DAOFactory
             return model;
             
         } catch (JDOMException jde) {
+        	logger.error("Error reading XML", jde);
             throw new EfreetException(jde.getMessage());
         } catch (IOException ioe) {
+        	logger.error("Error reading XML file", ioe);
             throw new EfreetException(ioe.getMessage());
         }
     }
