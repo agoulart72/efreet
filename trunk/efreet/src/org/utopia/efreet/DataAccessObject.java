@@ -1,5 +1,5 @@
 /*
- * $Id: DataAccessObject.java,v 1.1.1.1 2005-03-21 01:00:02 agoulart Exp $
+ * $Id: DataAccessObject.java,v 1.2 2006-03-21 01:43:40 agoulart Exp $
  */
 package org.utopia.efreet;
 
@@ -9,16 +9,12 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData; 
 import java.sql.SQLException;
 
-import java.math.BigDecimal;
-import java.math.BigInteger;
-
 import java.util.Collection;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Arrays;
-import java.util.Iterator;
-import java.util.Calendar;
-import java.util.StringTokenizer;
+import java.util.Hashtable;
+
+import org.apache.log4j.Logger;
 
 /**
  * DAO basic class <br>
@@ -30,22 +26,6 @@ import java.util.StringTokenizer;
  * Then the DAO is ready to go. The following examples describe some 
  * common operations :
  * <UL>
- *   <LI>Insert - To insert a new record in the table represented by
- * this DAO, you first set all the required values for the table. If a
- * value is not set but a default value exists in the model (see the
- * XML file) then the default value is used. Then call the 
- * <a href="#INSERT()">insert</a> method.</LI>
- *   <LI>Delete - To delete a record from the table represented by this
- * DAO, set the key values for this record and call the 
- * <a href="#DELETE()">delete</a> method.</LI>
- *   <LI>Update - Updating a record requires that you set the new values
- * of the record in the DAO and then call the method 
- * <a href="#update(java.lang.String[])">
- * update</a>. However you must take care not to modify the value of
- * the primary keys, as the primary keys are required as parameters for
- * this method. If you need to change the value of a primary key, the
- * strategy is to insert the new record and then delete the previous one,
- * this also helps ensure that the change doesn't violate any constraint.</LI>
  *   <LI>Queries - For queries you don't need to set the values of the
  * columns in the DAO. All you need is the name of the query defined in
  * the model and set the parameters as an array of Objects.</LI>
@@ -57,546 +37,60 @@ public class DataAccessObject
     protected Connection con = null;
     /** Number of records retrieved on the last query */
     protected int totalLastQuery = 0;
-    /** Name of the table this DAO represents */
-    protected String tableName = null;
-    /** List of columns of the table this DAO represents */
-    protected HashMap colunas = null;
-    /** List of values of the DAO */
-    protected HashMap values = null;
     /** The model of this DAO */
     protected DAOModel model = null;
-
+    /** Flag que indica modo de transacao para fechar a conexao */
+    protected boolean transactionMode = false; 
+ 
+    static Logger logger = Logger.getLogger(DataAccessObject.class.getName());
     
     public Connection getConnection() {	return this.con; }
     public void setConnection(Connection connection) { this.con = connection; }
     public int getTotalLastQuery() { return this.totalLastQuery; }
     public void setTotalLastQuery(int param) { this.totalLastQuery = param; }
-    public String getTableName() { return this.tableName; }
-    public void setTableName(String param) { this.tableName = param; }
 
     public DAOModel getModel() { return this.model; }
     public void setModel(DAOModel param) { 
         this.model = param; 
-        this.values.clear();
-        this.tableName = this.model.getTableName();
-        this.colunas = this.model.getColumns();
     }
 
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
-
-    /**
-     * Change column values
-     * @param columnName Name of the column this value will be set
-     * @param val Value to set the column
-     */
-    public void set(String columnName, Object val) throws DAOException
-    {
-        // Instancia Vetor de Valores deste Objeto
-        if (this.values == null) values = new HashMap();
-
-        // Verifica validade desta coluna
-       	if ( (this.colunas == null) ||
-             (! this.colunas.containsKey(columnName)) )
-            throw new DAOException("Invalid Column (" + columnName + ")","error.DAO.invalidColumn",columnName);
-
-        values.put(columnName, val);
-    }
-
-    /*
-     * Set Methods
-     */
-    public void set(String columnName, boolean param) throws DAOException {set(columnName, new Boolean(param)); }
-    public void set(String columnName, byte param) throws DAOException  { set(columnName, new Byte(param)); }
-    public void set(String columnName, char param) throws DAOException  { set(columnName, new Character(param)); }
-    public void set(String columnName, short param) throws DAOException  {set(columnName, new Short(param)); }
-    public void set(String columnName, int param) throws DAOException  { set(columnName, new Integer(param)); }
-    public void set(String columnName, long param) throws DAOException  {set(columnName, new Long(param)); }
-    public void set(String columnName, float param) throws DAOException  {set(columnName, new Float(param)); }
-    public void set(String columnName, double param) throws DAOException  {set(columnName, new Double(param)); }
-
-    /**
-     * Special one to convert from string (in format dd/mm/yyyy) to date
-     */
-    public void setStringAsDate(String columnName, String param)
-        throws DAOException
-    {
-        try {
-            Calendar clnd = Calendar.getInstance();
-
-            StringTokenizer tok = new StringTokenizer(param, "/");
-            if (tok.countTokens() < 3) {
-                throw new DAOException("Invalid Date value for " + columnName,"error.DAO.invalidType",columnName);
-            }
-
-            String sdia = tok.nextToken();
-            String smes = tok.nextToken();
-            String sano = tok.nextToken();
-
-            int idia = Integer.parseInt(sdia);
-            int imes = Integer.parseInt(smes);
-            int iano = Integer.parseInt(sano);
-
-            //log(DEBUG,"Date :  DD = " + idia + " MM = " + imes + " YYYY = " + iano);
-            clnd.set(iano,imes-1,idia);
-
-            set(columnName,new java.sql.Date(clnd.getTime().getTime()));
-
-        } catch (Exception ex) {
-            throw new DAOException("Invalid Date value for " + columnName,"error.DAO.invalidType",columnName);
-        }
-
-    }
-
-    // ----------------------------------------------------------------------
-    // ----------------------------------------------------------------------
-    // ----------------------------------------------------------------------
-
-    /**
-     * Retrieve values set on columns
-     * @return the Object with the value or null
-     */
-    public Object get(String columnName)
-        throws DAOException
-    {
-        Object retorno = null;
-
-        // Verifica validade desta coluna
-       	if ( (this.colunas == null) ||
-             (! this.colunas.containsKey(columnName)) )
-            throw new DAOException("Invalid Column (" + columnName + ")","error.DAO.invalidColumn",columnName);
-
-        // Se o valor nao foi setado, pegamos o valor default
-       	if ((this.values == null) ||
-            (! this.values.containsKey(columnName)) )
-            {
-                Column thisColuna = (Column) this.colunas.get(columnName);
-                retorno = thisColuna.get();
-            } else {
-                retorno = this.values.get(columnName);
-            }
-
-        return retorno;
-    }
-
-    /*
-     * Specific Get Methods
-     */
-    public String getString(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return "";
-        return retorno.toString().trim();
-    }
-    public boolean getBoolean(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return false;
-        if (!(retorno instanceof Boolean)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Boolean)retorno).booleanValue();
-    }
-    public byte getByte(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return 0;
-        if (!(retorno instanceof Byte)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Byte)retorno).byteValue();
-    }
-    public char getChar(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return ' ';
-        if (!(retorno instanceof Character)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Character)retorno).charValue();
-    }
-    public short getShort(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return 0;
-        if (!(retorno instanceof Short)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Short)retorno).shortValue();
-    }
-    public int getInt(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return 0;
-        if (retorno instanceof BigDecimal) return ((BigDecimal)retorno).intValue();
-        if (retorno instanceof BigInteger) return ((BigInteger)retorno).intValue();
-        if ((retorno instanceof Character) || (retorno instanceof String)) {
-            try {
-                return Integer.parseInt(retorno.toString());
-            } catch(NumberFormatException nfex) {
-                throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-            }
-        }
-        if (!(retorno instanceof Integer)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Integer)retorno).intValue();
-    }
-    public long getLong(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return 0;
-        if (retorno instanceof BigDecimal) return ((BigDecimal)retorno).longValue();
-        if (retorno instanceof BigInteger) return ((BigInteger)retorno).longValue();
-        if ((retorno instanceof Character) || (retorno instanceof String)) {
-            try {
-                return Long.parseLong(retorno.toString());
-            } catch(NumberFormatException nfex) {
-                throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-            }
-        }
-        if (!(retorno instanceof Long)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Long)retorno).longValue();
-    }
-    public float getFloat(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return 0;
-        if (retorno instanceof BigDecimal) return ((BigDecimal)retorno).floatValue();
-        if (retorno instanceof BigInteger) return ((BigInteger)retorno).floatValue();
-        if ((retorno instanceof Character) || (retorno instanceof String)) {
-            try {
-                return Float.parseFloat(retorno.toString());
-            } catch(NumberFormatException nfex) {
-                throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-            }
-        }
-        if (!(retorno instanceof Float)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Float)retorno).floatValue();
-    }
-    public double getDouble(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-        if (retorno == null) return 0;
-        if (retorno instanceof BigDecimal) return ((BigDecimal)retorno).doubleValue();
-        if (retorno instanceof BigInteger) return ((BigInteger)retorno).doubleValue();
-        if ((retorno instanceof Character) || (retorno instanceof String)) {
-            try {
-                return Double.parseDouble(retorno.toString());
-            } catch(NumberFormatException nfex) {
-                throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-            }
-        }
-        if (!(retorno instanceof Double)) throw new DAOException("Incorrect Type ("+columnName+")","error.DAO.invalidType",columnName);
-        return ((Double)retorno).doubleValue();
-    }
-
-    /**
-     * Special one to convert from date to string
-     */
-    public String getDateAsString(String columnName) throws DAOException
-    {
-        Object retorno = get(columnName);
-
-        if(retorno == null) return null;
-        if(retorno.toString().trim().length() == 0) return "";
-
-        Calendar clnd = Calendar.getInstance();
-
-        if (retorno instanceof java.util.Date) {
-            clnd.setTime((java.util.Date) retorno);
-        }
-        if (retorno instanceof java.sql.Timestamp) {
-            clnd.setTime((java.sql.Timestamp) retorno);
-        }
-
-        String retornoAsString = "";
-        int dia = clnd.get(Calendar.DAY_OF_MONTH);
-        int mes = clnd.get(Calendar.MONTH) + 1;
-        int ano = clnd.get(Calendar.YEAR);
-        if (dia < 10) retornoAsString += "0";
-        retornoAsString += dia +"/";
-        if (mes < 10) retornoAsString += "0";
-        retornoAsString += mes +"/";
-        if (ano < 1000) retornoAsString += "0";
-        if (ano < 100) retornoAsString += "0";
-        if (ano < 10) retornoAsString += "0";
-        retornoAsString += ano;
-
-        return retornoAsString;
-    }
-
-    // ----------------------------------------------------------------------
-    // ----------------------------------------------------------------------
-    // ----------------------------------------------------------------------
-
-    /**
-     * Standard Insert operation as defined in ANSI SQL 1992
-     */
-    public void insert()
-        throws DAOException
-    {
-        PreparedStatement ps = null;
-        // Cria a query de insert
-        String sql = "INSERT INTO " + getTableName() + " ( ";
-        Iterator it = this.colunas.values().iterator();
-        boolean firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (this.values.containsKey(thisColuna.getName()) ||
-                thisColuna.isRequired())
-                {
-                    if (! firstField) sql += ", "; else firstField = false;
-                    sql += thisColuna.getName();
-                }
-        }
-        sql += ") VALUES (";
-        it = this.colunas.values().iterator();
-        firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            // Verifica se foi dado algum valor a coluna
-            if (this.values.containsKey(thisColuna.getName())) {
-                Object valor = get(thisColuna.getName());
-                if (valor != null) {
-                    if (! firstField) sql += ", "; else firstField = false;
-                    if (valor instanceof QueryValue)
-                        sql += valor.toString();
-                    else
-                        sql += "?";
-                }
-            } else {
-                // Verifica se a coluna e necessaria
-                if (thisColuna.isRequired()) {
-                    if (! thisColuna.hasDefault())
-                        throw new DAOException("Column " + thisColuna.getName() + " is null","error.DAO.invalidValue");
-
-                    if (! firstField) sql += ", "; else firstField = false;
-                    sql += thisColuna.getDefault();
-                }
-            }
-        }
-        sql += ")";
-        //log(DEBUG, sql);
-
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-            it = this.colunas.values().iterator();
-            while (it.hasNext()) {
-                Column thisColuna = (Column) it.next();
-                if (this.values.containsKey(thisColuna.getName())) {
-                    Object valor = get(thisColuna.getName());
-                    if ((!(valor instanceof QueryValue)) && (valor != null))
-                        {
-                            //log(DEBUG,"("+i+") "+thisColuna.getName() + " = " + valor.toString() );
-                            ps.setObject(i,valor);
-                            i++;
-                        }
-
-                }
-            }
-
-            if (ps.executeUpdate() != 1) {
-                //log(SEVERE,"Insert on " + getTableName() + " does not result");
-                rollback();
-                throw new DAOException("Insert Error : " + getTableName(),"error.DAO.insert",getTableName());
-            }
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            rollback();
-            throw new DAOException("Unexpected Error Insert","error.DAO.database",e.getMessage());
-        } finally {
-            try {
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Insert","error.DAO.database",e.getMessage());
-            }
-        }
-
-    }
-
-    /**
-     * Standard Update operation as defined in ANSI SQL 1992 <br>
-     * Note that if you need to change the values of a column that is
-     * a primary key, you cannot use this method. In this case, you 
-     * should use an insert followed by a delete operation to achieve this.
-     * @param primaryKey an array of String containing the column name identification for each column that is to be used as a primar key.
-     */
-    public void update(String[] primaryKey)
-        throws DAOException
-    {
-        PreparedStatement ps = null;
-        // Cria a query de update
-        String sql = "UPDATE " + getTableName() + " ";
-
-        Iterator it = this.colunas.values().iterator();
-        boolean firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (this.values.containsKey(thisColuna.getName()))
-                {
-                    if (firstField) {
-                        sql += "SET ";
-                        firstField = false;
-                    }
-                    else
-                        sql += ", ";
-                    sql += thisColuna.getName() + " = ";
-                    Object valor = get(thisColuna.getName());
-                    if (valor instanceof QueryValue)
-                        sql += valor.toString();
-                    else
-                        sql += "?";
-                }
-        }
-
-        if (primaryKey != null) {
-            sql += " WHERE ";
-            for (int i=0; i < Arrays.asList(primaryKey).size(); i++) {
-                if (i>0) sql += " AND ";
-                sql += primaryKey[i] + " = ? ";
-            }
-        }
-
-        //log(DEBUG, sql);
-
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-            it = this.colunas.values().iterator();
-            while (it.hasNext()) {
-                Column thisColuna = (Column) it.next();
-                if (this.values.containsKey(thisColuna.getName())) {
-                    Object valor = get(thisColuna.getName());
-                    if (!(valor instanceof QueryValue))
-                        {
-                            //log(DEBUG,"("+i+") "+thisColuna.getName() + " = " + valor.toString() );
-                            ps.setObject(i,valor);
-                            i++;
-                        }
-
-                }
-            }
-
-            if (primaryKey != null) {
-                for (int k=0; k < Arrays.asList(primaryKey).size(); k++) {
-                    Object valor = get(primaryKey[k]);
-                    //log(DEBUG,"("+i+") "+primaryKey[k] + " = " + valor.toString() );
-                    ps.setObject(i,valor);
-                    i++;
-                }
-            }
-
-            if (ps.executeUpdate() < 0) {
-                //log(SEVERE,"Update on " + getTableName() + " does not result");
-                rollback();
-                throw new DAOException("Update Error : " + getTableName(),"error.DAO.update",getTableName());
-            }
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            rollback();
-            throw new DAOException("Unexpected Error Update","error.DAO.database",e.getMessage());
-        } finally {
-            try {
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Update","error.DAO.database",e.getMessage());
-            }
-        }
-
-    }
-
-    /**
-     * Standard Delete operation as defined in ANSI SQL 1992
-     */
-    public void delete()
-        throws DAOException
-    {
-        PreparedStatement ps = null;
-        // Cria a query de Delete
-        String sql = "DELETE FROM " + getTableName();
-
-        Iterator it = this.colunas.values().iterator();
-        boolean firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (this.values.containsKey(thisColuna.getName()))
-                {
-                    if (firstField)
-                        { sql += " WHERE "; firstField = false; }
-                    else
-                        sql += " AND ";
-                    sql += thisColuna.getName() + " = ";
-                    Object valor = get(thisColuna.getName());
-                    if (valor instanceof QueryValue)
-                        sql += valor.toString();
-                    else
-                        sql += "?";
-                }
-        }
-
-        //log(DEBUG, sql);
-
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-            it = this.colunas.values().iterator();
-            while (it.hasNext()) {
-                Column thisColuna = (Column) it.next();
-                if (this.values.containsKey(thisColuna.getName())) {
-                    Object valor = get(thisColuna.getName());
-                    if (!(valor instanceof QueryValue))
-                        {
-                            //log(DEBUG,"("+i+") "+thisColuna.getName() + " = " + valor.toString() );
-                            ps.setObject(i,valor);
-                            i++;
-                        }
-
-                }
-            }
-            ps.executeUpdate();
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            rollback();
-            String s;
-
-            if (e.getErrorCode() == 2292){
-
-                s = "Não foi possível excluir este registro. Este registro está sendo utilizado por outra(s) tabela(s).";
-            }else{
-
-                s = e.getMessage();  
-            } 			    
-
-            throw new DAOException("Unexpected Error Delete","error.DAO.database",s);
-        } finally {
-            try {
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Delete","error.DAO.database",e.getMessage());
-            }
-        }
-
-    }
 
     /**
      * Basic Query Operation - Several Elements
      *
      * @param query Name of the query defined for the query to be executed
      * @param params Array of strings containing values to be used as parameters for the query
+     * @param variables hashtable containing replacement variables
      */
-    public Collection queryAll(String query, Object[] params)
+    private Collection executeQuery(String query, Object[] params, Hashtable variables)
         throws DAOException
     {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        ArrayList col = new ArrayList();
-        
+		PreparedStatement ps = null;
+		ResultSet rs = null;
+		ArrayList col = new ArrayList();
 
-        String sql = getModel().getQuery(query).getStatement();
-        //log(DEBUG, sql);
+		Query queryObj = getModel().getQuery(query);
+		String sql = queryObj.getStatement(variables);
+		logger.debug(sql);
 
-        try {
+		try {
+    		if (con == null || con.isClosed()) {
+    			con = DataSource.getInstance().getConnection(getModel().getDataSource());
+    		}
+
             ps = con.prepareStatement(sql);
             if (params != null) {
                 for (int i=1; i<= Arrays.asList(params).size(); i++) {
-                    //log(DEBUG,"("+i+") " + params[i-1]);
-                    ps.setObject(i,params[i-1]);
+                    logger.debug("("+i+") " + params[i-1]);
+                    Object thisParam = params[i-1];
+                    if (thisParam instanceof java.util.Date) {
+                    	ps.setDate(i, new java.sql.Date(((java.util.Date) thisParam).getTime()));
+                    } else {
+                    	ps.setObject(i,params[i-1]);
+                    }
                 }
             }
 
@@ -609,28 +103,35 @@ public class DataAccessObject
                 QueryResult elemento = new QueryResult();
                 for (int i=1; i<=numberOfColumns; i++) {
                     String columnName = metaData.getColumnName(i);
+                    if (queryObj.getResult(i) != null) {
+                    	columnName = queryObj.getResult(i);
+                    }
                     elemento.set(columnName,rs.getObject(i));
                 }
                 col.add(elemento);
             }
 
             setTotalLastQuery(col.size());
-            //log(DEBUG,"Total Registros : " + getTotalLastQuery());
+            logger.debug("Total Registros : " + getTotalLastQuery());
 
             return col;
 
         } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
+            logger.error("DataBase Error :",e);
+            transactionMode = false; 
+            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
         } catch (Exception ex) {
-            //log(SEVERE,"Error :",ex);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",ex.getMessage());
+            logger.error("Error :",ex);
+            transactionMode = false; 
+            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",ex.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (ps != null) ps.close();
+                if (!transactionMode && con != null) con.close();
             } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
+            	logger.fatal("error.DAO.database", e);
+                throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
             }
         }
     }
@@ -640,25 +141,36 @@ public class DataAccessObject
      *
      * @param query Name of the query defined for the query to be executed
      * @param params Array of strings containing values to be used as parameters for the query
+     * @param variables hashtable containing replacement variables
      * @param firstElement first element of the block
      * @param nofElements block size
      */
-    public Collection queryOrdered(String query, Object[] params, int firstElement, int nofElements)
+    private Collection executeQuery(String query, Object[] params, Hashtable variables, int firstElement, int nofElements)
         throws DAOException
     {
         PreparedStatement ps = null;
         ResultSet rs = null;
         ArrayList col = new ArrayList();
-        String sql = getModel().getQuery(query).getStatement();
 
-        //log(DEBUG, sql);
+		Query queryObj = getModel().getQuery(query);
+		String sql = queryObj.getStatement();
+        logger.debug(sql);
 
         try {
+    		if (con == null || con.isClosed()) {
+    			con = DataSource.getInstance().getConnection(getModel().getDataSource());
+    		}
+
             ps = con.prepareStatement(sql,ResultSet.TYPE_SCROLL_INSENSITIVE,ResultSet.CONCUR_READ_ONLY);
             if (params != null) {
                 for (int i=1; i <= Arrays.asList(params).size(); i++) {
-                    //log(DEBUG,"("+i+") " + params[i-1]);
-                    ps.setObject(i,params[i-1]);
+                    logger.debug("("+i+") " + params[i-1]);
+                    Object thisParam = params[i-1];
+                    if (thisParam instanceof java.util.Date) {
+                    	ps.setDate(i, new java.sql.Date(((java.util.Date) thisParam).getTime()));
+                    } else {
+                    	ps.setObject(i,params[i-1]);
+                    }
                 }
             }
 
@@ -672,56 +184,77 @@ public class DataAccessObject
                 do {
                     QueryResult elemento = new QueryResult();
                     for (int i=1; i<=numberOfColumns; i++) {
-                        elemento.set(metaData.getColumnName(i),rs.getObject(i));
+                        String columnName = metaData.getColumnName(i);
+                        if (queryObj.getResult(i) != null) {
+                        	columnName = queryObj.getResult(i);
+                        }
+                        elemento.set(columnName,rs.getObject(i));
                     }
                     col.add(elemento);
                 } while(rs.next() && (rs.getRow() < firstElement + nofElements));
 
+                logger.debug("Ultimo registro recuperado : " + rs.getRow());
                 rs.last();
                 setTotalLastQuery(rs.getRow());
-                //log(DEBUG,"Total Registros : " + getTotalLastQuery());
+                logger.debug("Total Registros : " + getTotalLastQuery());
             }
 
             return col;
 
         } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
+            logger.error("DataBase Error :",e);
+            transactionMode = false; 
+            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
         } catch (Exception ex) {
-            //log(SEVERE,"Error :",ex);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",ex.getMessage());
+            logger.error("Error :",ex);
+            transactionMode = false; 
+            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",ex.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (ps != null) ps.close();
+                if (!transactionMode && con != null) con.close();
             } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
+                throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
             }
         }
 
     }
 
     /**
-     * Basic Query Operation - Single Element
-     *
-     * @param query Name of the query defined for the query to be executed
-     * @param params Array of strings containing values to be used as parameters for the query
+     * Execute query but returns a single result instead of a collection
+     * @param query String containing the name of the query to execute
+     * @param parameters array of parameters
+     * @param variables hashtable containing replacement variables
+     * @return A QueryResult object
+     * @throws DAOException in case of error
      */
-    public QueryResult querySingle(String query, Object[] params)
-        throws DAOException
+    private QueryResult executeQuerySingle(String query, Object[] params, Hashtable variables)
+    	throws DAOException
     {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
+		PreparedStatement ps = null;
+		ResultSet rs = null;
+        QueryResult result = null;
 
-        String sql = getModel().getQuery(query).getStatement();
-        //log(DEBUG, sql);
+		Query queryObj = getModel().getQuery(query);
+		String sql = queryObj.getStatement(variables);
+		logger.debug(sql);
 
-        try {
+		try {
+    		if (con == null || con.isClosed()) {
+    			con = DataSource.getInstance().getConnection(getModel().getDataSource());
+    		}
+
             ps = con.prepareStatement(sql);
             if (params != null) {
                 for (int i=1; i<= Arrays.asList(params).size(); i++) {
-                    //log(DEBUG,"("+i+") " + params[i-1]);
-                    ps.setObject(i,params[i-1]);
+                    logger.debug("("+i+") " + params[i-1]);
+                    Object thisParam = params[i-1];
+                    if (thisParam instanceof java.util.Date) {
+                    	ps.setDate(i, new java.sql.Date(((java.util.Date) thisParam).getTime()));
+                    } else {
+                    	ps.setObject(i,params[i-1]);
+                    }
                 }
             }
 
@@ -730,348 +263,288 @@ public class DataAccessObject
             ResultSetMetaData metaData = rs.getMetaData();
             int numberOfColumns = metaData.getColumnCount();
 
-            QueryResult elemento = new QueryResult();
-
             if(rs.next()) {
+                result = new QueryResult();
                 for (int i=1; i<=numberOfColumns; i++) {
                     String columnName = metaData.getColumnName(i);
-                    elemento.set(columnName,rs.getObject(i));
+                    if (queryObj.getResult(i) != null) {
+                    	columnName = queryObj.getResult(i);
+                    }
+                    result.set(columnName,rs.getObject(i));
                 }
             }
 
-            return elemento;
+            setTotalLastQuery((result!=null)?1:0);
+            logger.debug("Total Registros : " + getTotalLastQuery());
+
+            return result;
 
         } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
+            logger.error("DataBase Error :",e);
+            transactionMode = false; 
+            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
         } catch (Exception ex) {
-            //log(SEVERE,"Error :",ex);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",ex.getMessage());
+            logger.error("Error :",ex);
+            transactionMode = false; 
+            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",ex.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (ps != null) ps.close();
+                if (!transactionMode && con != null) con.close();
             } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
+            	logger.fatal("error.DAO.database", e);
+                throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
             }
         }
     }
 
     /**
-     * Query operation (returns first element)
-     * This query searches for the first element that matches
-     * the column. <br>
-     * The values of the DAO are set with the values recovered.
-     *
-     * @return false if not found
+     * Overwrite of the method in case you don't need parameters for the query
+     * @param query name of the query defined
+     * @return
+     * @throws DAOException
      */
-    public boolean queryFirst()
-        throws DAOException
+    public Collection executeQuery(String query)
+    	throws DAOException
     {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        // Cria a query de Select
-        String sql = "SELECT ";
+    	return executeQuery(query, new Object[0], null);
+    }
 
-        Iterator it = this.colunas.values().iterator();
-        boolean firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (firstField)
-                { sql += thisColuna.getName(); firstField = false; }
-            else
-                sql +=  ", " + thisColuna.getName();
-        }
-        sql += " FROM " + getTableName();
-        
-        it = this.colunas.values().iterator();
-        firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (this.values.containsKey(thisColuna.getName()))
-                {
-                    if (firstField)
-                        { sql += " WHERE "; firstField = false; }
-                    else
-                        sql += " AND ";
-                    sql += thisColuna.getName() + " = ";
-                    Object valor = get(thisColuna.getName());
-                    if (valor instanceof QueryValue)
-                        sql += valor.toString();
-                    else
-                        sql += "?";
-                }
-        }
+    /**
+     * Execute a query
+     * @deprecated Use @link #executeQuery(String, QueryParameter) instead
+     * @param query name of the query defined
+     * @param params
+     * @return
+     * @throws DAOException
+     */
+    public Collection executeQuery(String query, Object[] params)
+    	throws DAOException
+    {
+    	return executeQuery(query, params, null);
+    }
 
-        //log(DEBUG, sql);
+    /**
+     * Execute a query
+     * @param query name of the query defined
+     * @param params object QueryParameter with the parameters for the query
+     * @return a Collection of QueryResult objects
+     * @throws DAOException
+     */
+    public Collection executeQuery(String query, QueryParameter params) 
+    	throws DAOException
+   	{
+    	return executeQuery(query, params.getParameters(), params.getVariables());
+   	}
 
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-            it = this.colunas.values().iterator();
-            while (it.hasNext()) {
-                
-                Column thisColuna = (Column) it.next();
+    /**
+     * Execute a query starting and ending at specific positions in the result set
+     * @param query name of the query defined
+     * @param firstElement
+     * @param nofElements
+     * @return
+     * @throws DAOException
+     */
+    public Collection executeQuery(String query, int firstElement, int nofElements)
+    	throws DAOException
+    {
+    	return executeQuery(query, new Object[0], null, firstElement, nofElements);
+    }
 
-                if (this.values.containsKey(thisColuna.getName())) {
-                    Object valor = get(thisColuna.getName());
-                    if (!(valor instanceof QueryValue))
-                        {
-                            //log(DEBUG,"("+i+") "+thisColuna.getName() + " = " + valor.toString() );
-                            ps.setObject(i,valor);
-                            i++;
-                        }
-                }
-            }
-            
+    /**
+     * Execute a query starting and ending at specific positions in the result set 
+     * @deprecated Use @link #executeQuery(String, QueryParameter, int, int) instead
+     * @param query name of the query defined
+     * @param params
+     * @param firstElement
+     * @param nofElements
+     * @return
+     * @throws DAOException
+     */
+    public Collection executeQuery(String query, Object[] params, int firstElement, int nofElements)
+		throws DAOException
+   	{
+    	return executeQuery(query, params, null, firstElement, nofElements);
+   	}
+    
+    /**
+     * Execute a query starting and ending at specific positions in the result set 
+     * @param query name of the query defined
+     * @param params
+     * @param firstElement
+     * @param nofElements
+     * @return
+     * @throws DAOException
+     */
+    public Collection executeQuery(String query, QueryParameter params, int firstElement, int nofElements)
+		throws DAOException
+   	{
+    	return executeQuery(query, params.getParameters(), params.getVariables(), firstElement, nofElements);
+   	}
 
-            rs = ps.executeQuery();
+    /**
+     * Execute a query returning a single result
+     * @param query name of the query defined
+     * @return
+     * @throws DAOException
+     */
+    public QueryResult executeQuerySingle(String query)
+    	throws DAOException
+    {
+    	return executeQuerySingle(query, new Object[0], null);
+    }
 
-            //System.out.println("# " + rs.isBeforeFirst());
+    /**
+     * Execute a query returning a single result
+     * @deprecated Use @link #executeQuerySingle(String, QueryParameter) instead
+     * @param query name of the query defined
+     * @return
+     * @throws DAOException
+     */
+    public QueryResult executeQuerySingle(String query, Object[] params)
+    	throws DAOException
+    {
+    	return executeQuerySingle(query, new Object[0], null);
+    }
 
-            if (rs.next()) {
+    /**
+     * Execute a query returning a single result
+     * @param query name of the query defined
+     * @param params
+     * @return
+     */
+    public QueryResult executeQuerySingle(String query, QueryParameter params)
+    	throws DAOException
+    {
+    	return executeQuerySingle(query, params.getParameters(), params.getVariables());
+    }
+    
+    
+    /**
+     * Method to execute update, insert and delete operation
+     * @param query
+     * @param params
+     * @return
+     * @throws DAOException
+     */
+    private int executeUpdate(String query, Object[] params, Hashtable variables)
+			throws DAOException 
+	{
+		PreparedStatement ps = null;
 
-                if (this.values == null) this.values = new HashMap();
+		String sql = getModel().getQuery(query).getStatement(variables);
+		logger.debug(sql);
 
-                it = this.colunas.values().iterator();
+		try {
+			if (con == null || con.isClosed()) {
+				con = DataSource.getInstance().getConnection(getModel().getDataSource());
+			}
 
-                while (it.hasNext()) {
-                    Column thisColuna = (Column) it.next();
-                    String colunaNome = thisColuna.getName();
+			ps = con.prepareStatement(sql);
+			
+			if (params != null) {
+				for (int i = 1; i <= Arrays.asList(params).size(); i++) {
+					logger.debug("(" + i + ") " + params[i - 1]);
+					if (params[i - 1] != null) {
+						ps.setObject(i, params[i - 1]);
+					} else {
+						int cType = this.model.getQuery(query).getParameter(i);
+						ps.setNull(i, cType);
+					}
+				}
+			}
 
-                    // System.out.println("# " + colunaNome + " = " + rs.getObject(colunaNome));
-                
-                    set(colunaNome,rs.getObject(colunaNome));
-                }
+			return ps.executeUpdate();
 
-            } else {
-                return false;
-            }
+		} catch (SQLException e) {
+			logger.error("DataBase Error :", e);
+			if (transactionMode) rollback();
+			transactionMode = false; 
+			throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", e.getMessage());
+		} catch (Exception ex) {
+			logger.error("Error :", ex);
+			transactionMode = false; 
+			throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", ex.getMessage());
+		} finally {
+			try {
+				if (!transactionMode) con.commit();
+				if (ps != null)
+					ps.close();
+				if (!transactionMode && con != null)
+					con.close();
+			} catch (SQLException e) {
+				throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", e.getMessage());
+			}
+		}
+	}
 
-            return true;
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-            }
-        }
+    /**
+     * Execute update, insert and delete operation
+     * @param query
+     * @return
+     * @throws DAOException
+     */
+    public int executeUpdate(String query) 
+    	throws DAOException
+    {
+    	return executeUpdate(query, new Object[0], null);
     }
     
     /**
-     * Count the number of records that match the values of the DAO
+     * Execute update, insert and delete operation
+     * @deprecated Use @link #executeUpdate(String, QueryParameter) instead
+     * @param query
+     * @param params
+     * @return
+     * @throws DAOException
      */
-    public int count()
-        throws DAOException
-    {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        // Cria a query de consulta
-        String sql = "SELECT COUNT(*) FROM " + getTableName();
-
-        Iterator it = this.colunas.values().iterator();
-        boolean firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (this.values.containsKey(thisColuna.getName()))
-                {
-                    if (firstField)
-                        { sql += " WHERE "; firstField = false; }
-                    else
-                        sql += " AND ";
-                    sql += thisColuna.getName() + " = ";
-                    Object valor = get(thisColuna.getName());
-                    if (valor instanceof QueryValue)
-                        sql += valor.toString();
-                    else
-                        sql += "?";
-                }
-        }
-
-        //log(DEBUG, sql);
-
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-            it = this.colunas.values().iterator();
-            while (it.hasNext()) {
-                Column thisColuna = (Column) it.next();
-                if (this.values.containsKey(thisColuna.getName())) {
-                    Object valor = get(thisColuna.getName());
-                    if (!(valor instanceof QueryValue))
-                        {
-                            //log(DEBUG,"("+i+") "+thisColuna.getName() + " = " + valor.toString() );
-                            ps.setObject(i,valor);
-                            i++;
-                        }
-
-                }
-            }
-
-            rs = ps.executeQuery();
-
-            if (rs.next())
-                return rs.getInt(1);
-            else
-                return 0;
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-            }
-        }
+    public int executeUpdate(String query, Object[] params)
+		throws DAOException
+	{
+    	return executeUpdate(query, params, null);
     }
-
+    
     /**
-     * Check if at least one record with the values exists on the table
+     * Execute update, insert and delete operation
+     * @param query
+     * @param params
+     * @return
+     * @throws DAOException
      */
-    public boolean exists()
-        throws DAOException
+    public int executeUpdate(String query, QueryParameter params)
+    	throws DAOException
     {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        // Cria a query de consulta
-        String sql = "SELECT 1 FROM DUAL WHERE EXISTS " +
-            " ( SELECT * FROM " + getTableName();
-
-        Iterator it = this.colunas.values().iterator();
-        boolean firstField = true;
-        while (it.hasNext()) {
-            Column thisColuna = (Column) it.next();
-            if (this.values.containsKey(thisColuna.getName()))
-                {
-                    if (firstField)
-                        { sql += " WHERE "; firstField = false; }
-                    else
-                        sql += " AND ";
-                    sql += thisColuna.getName() + " = ";
-                    Object valor = get(thisColuna.getName());
-                    if (valor instanceof QueryValue)
-                        sql += valor.toString();
-                    else
-                        sql += "?";
-                }
-        }
-        sql += ")";
-        //log(DEBUG, sql);
-
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-            it = this.colunas.values().iterator();
-            while (it.hasNext()) {
-                Column thisColuna = (Column) it.next();
-                if (this.values.containsKey(thisColuna.getName())) {
-                    Object valor = get(thisColuna.getName());
-                    if (!(valor instanceof QueryValue))
-                        {
-                            //log(DEBUG,"("+i+") "+thisColuna.getName() + " = " + valor.toString() );
-                            ps.setObject(i,valor);
-                            i++;
-                        }
-
-                }
-            }
-
-		
-
-            rs = ps.executeQuery();
-	    	
-
-            if ((rs.next()) &&
-                (rs.getInt(1) == 1)){
-
-                //System.out.println("Passou pelo DAO: "+new java.util.Date());
-                return true;}
-            else
-                return false;
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-            }
-        }
+    	return executeUpdate(query, params.getParameters(), params.getVariables());
     }
-
-
-    /**
-     * Check if the record identified by the PK exists on the table.
-     */
-    public boolean exists(String[] primaryKey)
-        throws DAOException
-    {
-        PreparedStatement ps = null;
-        ResultSet rs = null;
-        // Cria a query de consulta
-        String sql = "SELECT 1 FROM DUAL WHERE EXISTS " +
-            " ( SELECT * FROM " + getTableName();
-
-        if (primaryKey != null) {
-            sql += " WHERE ";
-            for (int i=0; i < Arrays.asList(primaryKey).size(); i++) {
-                if (i>0) sql += " AND ";
-                sql += primaryKey[i] + " = ? ";
-            }
-        }
-
-        sql += ")";
-        //log(DEBUG, sql);
-
-        try {
-            ps = con.prepareStatement(sql);
-            int i = 1;
-
-            for (int k=0; k < Arrays.asList(primaryKey).size(); k++) {
-                Object valor = get(primaryKey[k]);
-                //log(DEBUG,"("+i+") "+primaryKey[k] + " = " + valor.toString() );
-                ps.setObject(i,valor);
-                i++;
-            }
-
-            rs = ps.executeQuery();
-
-            if ((rs.next()) &&
-                (rs.getInt(1) == 1))
-                return true;
-            else
-                return false;
-
-        } catch (SQLException e) {
-            //log(SEVERE,"DataBase Error :",e);
-            throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-        } finally {
-            try {
-                if (rs != null) rs.close();
-                if (ps != null) ps.close();
-            } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query","error.DAO.database",e.getMessage());
-            }
-        }
-    }
-
+    
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
 
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
 
+    
     /**
+     * The transaction mode of the DAO 
+	 * @return Returns the transactionMode.
+	 */
+	public boolean isTransactionMode() {
+		return transactionMode;
+	}
+	
+	/**
+	 * If transactionMode is set to true, it means that the DAO will NOT close
+	 * the connection after the statements, and will take care of rollbacks.
+	 * However, you must close the connection at the end of your transaction.
+	 * @param transactionMode The transactionMode to set.
+	 */
+	public void setTransactionMode(boolean transactionMode) {
+		this.transactionMode = transactionMode;
+	}
+	/**
      * Commit the transaction
      */
     public boolean commit()
@@ -1082,7 +555,7 @@ public class DataAccessObject
             this.con.commit();
             return true;
         } catch(SQLException e) {
-            //log(SEVERE,"Commit Error : ",e);
+            logger.error("Commit Error : ",e);
             return false;
         }
     }
@@ -1099,20 +572,26 @@ public class DataAccessObject
             this.con.rollback();
             return true;
         } catch(SQLException e) {
-            //log(SEVERE,"Rollback Error : ",e);
+            logger.error("Rollback Error : ",e);
             return false;
         }
     }
 
-    // Log methods
-    // ------------------------------------------------------------
-    /*
-    public void log(String msg) { Logger.log(msg); }
-    public void log(Level level, String msg) { Logger.log(level, msg); }
-    public void log(Level level, String msg, Throwable thrown) { Logger.log(level, msg, thrown); }
-    public void entering(String sourceClass, String sourceMethod) { Logger.entering(sourceClass, sourceMethod, null);}
-    public void entering(String sourceClass, String sourceMethod, Object[] params) { Logger.entering(sourceClass, sourceMethod, params); }
-    public void exiting(String sourceClass, String sourceMethod) { Logger.exiting(sourceClass, sourceMethod); }
-    */
-
+    /**
+     * Close current connection, these method is supposed to be called if you
+     * set the transaction mode to true.
+     * @return true if the connection is successfully closed
+     */
+    public boolean close() 
+    {
+        try {
+            if ((this.con == null) || (this.con.isClosed())) return false;
+            this.con.close();
+            return true;
+        } catch(SQLException e) {
+            logger.error("Connection Close Error : ",e);
+            return false;
+        }
+    }
+    
 }

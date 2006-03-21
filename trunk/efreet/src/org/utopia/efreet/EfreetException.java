@@ -5,7 +5,12 @@ package org.utopia.efreet;
  */
 public class EfreetException extends Exception {
 
-    public EfreetException(String message) {
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = -2592878048065198146L;
+
+	public EfreetException(String message) {
         super(message);
     }
 }

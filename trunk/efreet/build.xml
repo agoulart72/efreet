@@ -1,0 +1,94 @@
+<project name="Efreet" default="all">
+
+	<property file="build.properties" />
+    <property name="deploy.home" value="${work.home}/deploy"/>
+	
+	<!-- Classpath settings -->
+	<path id="compile.classpath">
+		<pathelement location="bin"/>
+		<fileset dir="lib">
+			<include name="*.jar"/>
+		</fileset>	  
+	  	
+		<pathelement path ="${classpath}"/>
+	</path>
+
+    <!-- Project settings -->
+    <property name="project.title" value="Efreet"/>
+    <property name="project.distname" value="efreet"/>
+    <property name="project.version" value="1.0"/>
+
+    <!-- Check timestamp on files -->
+    <target name="prepare">
+        <tstamp/>
+    </target>
+
+    <!-- Copy any resource or configuration files -->
+    <target name="resources">
+        <copy todir="bin" includeEmptyDirs="no">
+            <fileset dir="src">
+            <patternset>
+                <include name="**/*.conf"/>
+                <include name="**/*.properties"/>
+                <include name="**/*.xml"/>
+            </patternset>
+            </fileset>
+        </copy>
+    </target>
+
+
+    <!-- Normal build of application -->
+    <target name="compile" depends="prepare,resources">
+        <echo>Compiling to bin</echo>
+        <javac srcdir="src" destdir="bin">
+            <classpath refid="compile.classpath"/>
+        </javac>
+    </target>
+
+
+    <!-- Remove classes directory for clean build -->
+    <target name="clean"
+      description="Prepare for clean build">
+      <delete dir="bin"/>
+      <mkdir  dir="bin"/>
+    </target>
+
+
+    <!-- Build Javadoc documentation -->
+    <target name="javadoc"
+     description="Generate JavaDoc API docs">
+        <delete dir="./doc/api"/>
+        <mkdir dir="./doc/api"/>
+        <javadoc sourcepath="./src"
+            destdir="doc/api"
+            packagenames="org.utopia.*"
+            author="true"
+            private="true"
+            version="true"
+            windowtitle="${project.title} API Documentation"
+            doctitle="&lt;h1&gt;${project.title} Documentation (Version ${project.version})&lt;/h1&gt;"
+            bottom="utopia.org"
+        	header="Efreet">
+            <classpath refid="compile.classpath"/>
+        </javadoc>
+    </target>
+
+
+    <!-- Build entire project -->
+    <target name="project" depends="clean,prepare,compile,javadoc"/>
+
+
+    <!-- Create binary distribution -->
+    <target name="dist" description="Create binary distribution">
+
+      <mkdir dir="${deploy.home}"/>
+      <jar
+        jarfile="${deploy.home}/${project.distname}.jar"
+        basedir="bin"/>
+    </target>
+
+
+    <!-- Build project and create distribution-->
+    <target name="all" depends="project,dist"/>
+
+</project>
