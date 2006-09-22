@@ -42,6 +42,8 @@ elementFormDefault="qualified">
 				<xs:enumeration value="number"/>
 				<xs:enumeration value="char"/>
 				<xs:enumeration value="date"/>
+				<xs:enumeration value="time"/>
+				<xs:enumeration value="timestamp"/>
 			 </xs:restriction>
 	</xs:attribute>
 </xs:complexType>

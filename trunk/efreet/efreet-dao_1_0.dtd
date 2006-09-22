@@ -26,10 +26,10 @@
      type - implicito "query" serve como indicativo do tipo de
             statement (query, include, update, delete)
      -->
-<!ELEMENT query (#PCDATA|parameter|result)*>
+<!ELEMENT query (#PCDATA|parameter|result)* >
 <!ATTLIST query  id             ID             #IMPLIED>
 <!ATTLIST query  name          CDATA           #REQUIRED>
-<!ATTLIST query  type          CDATA           #IMPLIED>
+<!ATTLIST query  type (query|insert|update|delete) "query">
 
 <!-- ========== Subordinate Elements ====================================== -->
 <!-- The "parameter" element represents the parameters to be passed
@@ -43,8 +43,8 @@
         DATE - for date, time and timestamp result
 -->
 <!ELEMENT parameter EMPTY>
-<!ATTLIST parameter index   CDATA   #REQUIRED>
-<!ATTLIST parameter type   CDATA   #REQUIRED>
+<!ATTLIST parameter index   CDATA  #REQUIRED>
+<!ATTLIST parameter type   (number|char|date|time|timestamp|NUMBER|CHAR|DATE|TIME|TIMESTAMP) #REQUIRED>
 
 <!-- The "result" element represents the mapping for the return of
      each column in the result of the query statement 
@@ -56,3 +56,5 @@
 -->
 <!ELEMENT result (#PCDATA)>
 <!ATTLIST result index  CDATA   #REQUIRED>
+
+
