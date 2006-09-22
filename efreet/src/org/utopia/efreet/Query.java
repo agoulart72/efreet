@@ -71,7 +71,7 @@ public class Query
     		while (enm.hasMoreElements()) {
     			String chave = (String) enm.nextElement();
     			if (chave != null) {
-    				retStatement.replaceAll("${" + chave + "}", (String) variables.get(chave));
+    				retStatement = retStatement.replaceAll("\\$\\{" + chave + "\\}", (String) variables.get(chave));
     			}
     		}
     	}
@@ -100,7 +100,7 @@ public class Query
     /**
      * Retrieve the type of parameter
      * @param pos Parameter position in the query
-     * @return parameter type (possible values possible values Query.P_NONE, Query.P_NUMERIC, Query.P_CHAR, Query.P_DATE )
+     * @return parameter type (possible values possible values Types.JAVA_OBJECT, Types.NUMERIC, Types.CHAR, Types.DATE, Types.TIME, Types.TIMESTAMP )
      */
     public int getParameter(int pos) {
         if ((parameters != null) && 
