@@ -1,5 +1,5 @@
 /*
- * $Id: ResourceableException.java,v 1.1.1.1 2005-03-21 01:00:08 agoulart Exp $
+ * $Id: ResourceableException.java,v 1.2 2006-09-22 12:32:42 agoulart Exp $
  */
 package org.utopia.common;
 
@@ -9,7 +9,11 @@ package org.utopia.common;
  */
 public class ResourceableException extends Exception {
 
-    protected String resourceMessage = null;
+    /**
+	 * 
+	 */
+	private static final long serialVersionUID = 867593028502492272L;
+	protected String resourceMessage = null;
     protected Object placeHolder[] = null;
     protected int placeHolderSize = 0;
 

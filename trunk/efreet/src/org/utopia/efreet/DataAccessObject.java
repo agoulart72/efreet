@@ -1,5 +1,5 @@
 /*
- * $Id: DataAccessObject.java,v 1.2 2006-03-21 01:43:40 agoulart Exp $
+ * $Id: DataAccessObject.java,v 1.3 2006-09-22 12:32:42 agoulart Exp $
  */
 package org.utopia.efreet;
 
@@ -8,6 +8,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData; 
 import java.sql.SQLException;
+import java.sql.Time;
+import java.sql.Timestamp;
+import java.sql.Types;
 
 import java.util.Collection;
 import java.util.ArrayList;
@@ -87,7 +90,19 @@ public class DataAccessObject
                     logger.debug("("+i+") " + params[i-1]);
                     Object thisParam = params[i-1];
                     if (thisParam instanceof java.util.Date) {
-                    	ps.setDate(i, new java.sql.Date(((java.util.Date) thisParam).getTime()));
+						int cType = this.model.getQuery(query).getParameter(i - 1);
+						long milis = ((java.util.Date) thisParam).getTime();
+						if (cType == Types.TIME) {
+							Time pTm = new Time(milis);
+							ps.setTime(i, pTm);
+						} else
+						if (cType == Types.TIMESTAMP) {
+							Timestamp pTm = new Timestamp(milis);
+							ps.setTimestamp(i, pTm);
+						} else {
+							java.sql.Date pDt = new java.sql.Date(milis); 
+							ps.setDate(i, pDt);
+						}
                     } else {
                     	ps.setObject(i,params[i-1]);
                     }
@@ -153,7 +168,7 @@ public class DataAccessObject
         ArrayList col = new ArrayList();
 
 		Query queryObj = getModel().getQuery(query);
-		String sql = queryObj.getStatement();
+		String sql = queryObj.getStatement(variables);
         logger.debug(sql);
 
         try {
@@ -167,7 +182,19 @@ public class DataAccessObject
                     logger.debug("("+i+") " + params[i-1]);
                     Object thisParam = params[i-1];
                     if (thisParam instanceof java.util.Date) {
-                    	ps.setDate(i, new java.sql.Date(((java.util.Date) thisParam).getTime()));
+						int cType = this.model.getQuery(query).getParameter(i - 1);
+						long milis = ((java.util.Date) thisParam).getTime();
+						if (cType == Types.TIME) {
+							Time pTm = new Time(milis);
+							ps.setTime(i, pTm);
+						} else
+						if (cType == Types.TIMESTAMP) {
+							Timestamp pTm = new Timestamp(milis);
+							ps.setTimestamp(i, pTm);
+						} else {
+							java.sql.Date pDt = new java.sql.Date(milis); 
+							ps.setDate(i, pDt);
+						}
                     } else {
                     	ps.setObject(i,params[i-1]);
                     }
@@ -251,7 +278,19 @@ public class DataAccessObject
                     logger.debug("("+i+") " + params[i-1]);
                     Object thisParam = params[i-1];
                     if (thisParam instanceof java.util.Date) {
-                    	ps.setDate(i, new java.sql.Date(((java.util.Date) thisParam).getTime()));
+						int cType = this.model.getQuery(query).getParameter(i - 1);
+						long milis = ((java.util.Date) thisParam).getTime();
+						if (cType == Types.TIME) {
+							Time pTm = new Time(milis);
+							ps.setTime(i, pTm);
+						} else
+						if (cType == Types.TIMESTAMP) {
+							Timestamp pTm = new Timestamp(milis);
+							ps.setTimestamp(i, pTm);
+						} else {
+							java.sql.Date pDt = new java.sql.Date(milis); 
+							ps.setDate(i, pDt);
+						}
                     } else {
                     	ps.setObject(i,params[i-1]);
                     }
@@ -446,10 +485,27 @@ public class DataAccessObject
 			if (params != null) {
 				for (int i = 1; i <= Arrays.asList(params).size(); i++) {
 					logger.debug("(" + i + ") " + params[i - 1]);
-					if (params[i - 1] != null) {
-						ps.setObject(i, params[i - 1]);
+                    Object thisParam = params[i-1];
+					if (thisParam != null) {
+	                    if (thisParam instanceof java.util.Date) {
+							int cType = this.model.getQuery(query).getParameter(i - 1);
+							long milis = ((java.util.Date) thisParam).getTime();
+							if (cType == Types.TIME) {
+								Time pTm = new Time(milis);
+								ps.setTime(i, pTm);
+							} else
+							if (cType == Types.TIMESTAMP) {
+								Timestamp pTm = new Timestamp(milis);
+								ps.setTimestamp(i, pTm);
+							} else {
+								java.sql.Date pDt = new java.sql.Date(milis); 
+								ps.setDate(i, pDt);
+							}
+	                    } else {
+	                    	ps.setObject(i, thisParam);
+	                    }
 					} else {
-						int cType = this.model.getQuery(query).getParameter(i);
+						int cType = this.model.getQuery(query).getParameter(i - 1);
 						ps.setNull(i, cType);
 					}
 				}
@@ -464,6 +520,7 @@ public class DataAccessObject
 			throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", e.getMessage());
 		} catch (Exception ex) {
 			logger.error("Error :", ex);
+			if (transactionMode) rollback();
 			transactionMode = false; 
 			throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", ex.getMessage());
 		} finally {

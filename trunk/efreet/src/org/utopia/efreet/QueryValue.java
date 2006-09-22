@@ -1,5 +1,5 @@
 /*
- * $Id: QueryValue.java,v 1.2 2006-03-21 01:43:40 agoulart Exp $
+ * $Id: QueryValue.java,v 1.3 2006-09-22 12:32:42 agoulart Exp $
  */
 package org.utopia.efreet;
 

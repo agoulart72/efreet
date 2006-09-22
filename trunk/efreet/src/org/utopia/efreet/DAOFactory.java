@@ -164,6 +164,10 @@ public class DAOFactory
 	                        	q.addParameter(Types.CHAR);
 	                        } else if (pType.equalsIgnoreCase("date")) {
 	                        	q.addParameter(Types.DATE);
+	                        } else if (pType.equalsIgnoreCase("time")) {
+	                        	q.addParameter(Types.TIME);
+	                        } else if (pType.equalsIgnoreCase("timestamp")) {
+	                        	q.addParameter(Types.TIMESTAMP);
 	                        } else {
 	                        	q.addParameter(Types.JAVA_OBJECT);
 	                        }
