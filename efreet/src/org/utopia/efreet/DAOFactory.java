@@ -150,6 +150,8 @@ public class DAOFactory
 	                    	q.setType(Query.Q_UPDATE);
 	                    } else if (qType.equalsIgnoreCase("procedure")) {
 	                    	q.setType(Query.Q_PROCEDURE);
+	                    } else if (qType.equalsIgnoreCase("conditional")) {
+	                    	q.setType(Query.Q_CONDITIONAL);
 	                    }
                     }
                     q.setStatement(thisQuery.getTextNormalize());

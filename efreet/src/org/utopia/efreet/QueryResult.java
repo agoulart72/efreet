@@ -168,11 +168,14 @@ public class QueryResult
     {
     	Object retorno = get(nomeColuna);
     	if (retorno == null) return null;
-    	if (retorno instanceof java.util.Date) {
-    	    return (java.util.Date) retorno;
-    	}
     	if (retorno instanceof java.sql.Timestamp) {
     	    return new java.util.Date(((java.sql.Timestamp) retorno).getTime());
+    	}
+    	if (retorno instanceof java.sql.Date) {
+    	    return new java.util.Date(((java.sql.Date) retorno).getTime());
+    	}
+    	if (retorno instanceof java.util.Date) {
+    	    return (java.util.Date) retorno;
     	}
     	return new java.util.Date();
     }
@@ -187,11 +190,11 @@ public class QueryResult
 
 	Calendar clnd = Calendar.getInstance();
 
-	if (retorno instanceof java.util.Date) {
-	    clnd.setTime((java.util.Date) retorno);
-	}
 	if (retorno instanceof java.sql.Timestamp) {
 	    clnd.setTime((java.sql.Timestamp) retorno);
+	}
+	if (retorno instanceof java.util.Date) {
+	    clnd.setTime((java.util.Date) retorno);
 	}
 
 	String retornoAsString = "";
