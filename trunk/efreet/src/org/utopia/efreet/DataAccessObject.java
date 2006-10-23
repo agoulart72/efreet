@@ -1,5 +1,5 @@
 /*
- * $Id: DataAccessObject.java,v 1.3 2006-09-22 12:32:42 agoulart Exp $
+ * $Id: DataAccessObject.java,v 1.4 2006-10-23 20:53:49 agoulart Exp $
  */
 package org.utopia.efreet;
 
@@ -15,7 +15,9 @@ import java.sql.Types;
 import java.util.Collection;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Hashtable;
+import java.util.Vector;
 
 import org.apache.log4j.Logger;
 
@@ -57,10 +59,54 @@ public class DataAccessObject
         this.model = param; 
     }
 
+    private HashMap conditionalQueries = null;
+    
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
 
+    /**
+     * Sets the parameters to the prepared statement
+     * @param ps prepared statement
+     * @param queryObj Query object
+     * @param parameters
+     */
+    private void setParameters(PreparedStatement ps, Query queryObj, Object[] params)
+    	throws SQLException, Exception
+    {
+        if (params != null) {
+            for (int i=1; i<= Arrays.asList(params).size(); i++) {
+                logger.debug("(" + i + ") " + params[i - 1]);
+                Object thisParam = params[i-1];
+				if (thisParam != null) {
+	                if (thisParam instanceof java.util.Date) {
+						int cType = queryObj.getParameter(i - 1);
+						long milis = ((java.util.Date) thisParam).getTime();
+						if (cType == Types.TIME) {
+							logger.debug("[TIME]");
+							Time pTm = new Time(milis);
+							ps.setTime(i, pTm);
+						} else
+						if (cType == Types.TIMESTAMP) {
+							logger.debug("[TIMESTAMP]");
+							Timestamp pTm = new Timestamp(milis);
+							ps.setTimestamp(i, pTm);
+						} else {
+							logger.debug("[DATE]");
+							java.sql.Date pDt = new java.sql.Date(milis); 
+							ps.setDate(i, pDt);
+						}
+	                } else {
+	                	ps.setObject(i,params[i-1]);
+	                }
+				} else {
+					int cType = queryObj.getParameter(i - 1);
+					ps.setNull(i, cType);
+				}
+            }
+        }
+    }
+    
     /**
      * Basic Query Operation - Several Elements
      *
@@ -76,6 +122,10 @@ public class DataAccessObject
 		ArrayList col = new ArrayList();
 
 		Query queryObj = getModel().getQuery(query);
+		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
+			queryObj = (Query) conditionalQueries.get(query);
+		}
+		
 		String sql = queryObj.getStatement(variables);
 		logger.debug(sql);
 
@@ -85,29 +135,8 @@ public class DataAccessObject
     		}
 
             ps = con.prepareStatement(sql);
-            if (params != null) {
-                for (int i=1; i<= Arrays.asList(params).size(); i++) {
-                    logger.debug("("+i+") " + params[i-1]);
-                    Object thisParam = params[i-1];
-                    if (thisParam instanceof java.util.Date) {
-						int cType = this.model.getQuery(query).getParameter(i - 1);
-						long milis = ((java.util.Date) thisParam).getTime();
-						if (cType == Types.TIME) {
-							Time pTm = new Time(milis);
-							ps.setTime(i, pTm);
-						} else
-						if (cType == Types.TIMESTAMP) {
-							Timestamp pTm = new Timestamp(milis);
-							ps.setTimestamp(i, pTm);
-						} else {
-							java.sql.Date pDt = new java.sql.Date(milis); 
-							ps.setDate(i, pDt);
-						}
-                    } else {
-                    	ps.setObject(i,params[i-1]);
-                    }
-                }
-            }
+
+            setParameters(ps, queryObj, params);
 
             rs = ps.executeQuery();
 
@@ -121,7 +150,12 @@ public class DataAccessObject
                     if (queryObj.getResult(i) != null) {
                     	columnName = queryObj.getResult(i);
                     }
-                    elemento.set(columnName,rs.getObject(i));
+                    int dataType = metaData.getColumnType(i);
+                    if (dataType == Types.TIMESTAMP) {
+                    	elemento.set(columnName,rs.getTimestamp(i));
+                    } else {
+                    	elemento.set(columnName,rs.getObject(i));
+                    }
                 }
                 col.add(elemento);
             }
@@ -168,6 +202,10 @@ public class DataAccessObject
         ArrayList col = new ArrayList();
 
 		Query queryObj = getModel().getQuery(query);
+		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
+			queryObj = (Query) conditionalQueries.get(query);
+		}
+
 		String sql = queryObj.getStatement(variables);
         logger.debug(sql);
 
@@ -177,29 +215,8 @@ public class DataAccessObject
     		}
 
             ps = con.prepareStatement(sql,ResultSet.TYPE_SCROLL_INSENSITIVE,ResultSet.CONCUR_READ_ONLY);
-            if (params != null) {
-                for (int i=1; i <= Arrays.asList(params).size(); i++) {
-                    logger.debug("("+i+") " + params[i-1]);
-                    Object thisParam = params[i-1];
-                    if (thisParam instanceof java.util.Date) {
-						int cType = this.model.getQuery(query).getParameter(i - 1);
-						long milis = ((java.util.Date) thisParam).getTime();
-						if (cType == Types.TIME) {
-							Time pTm = new Time(milis);
-							ps.setTime(i, pTm);
-						} else
-						if (cType == Types.TIMESTAMP) {
-							Timestamp pTm = new Timestamp(milis);
-							ps.setTimestamp(i, pTm);
-						} else {
-							java.sql.Date pDt = new java.sql.Date(milis); 
-							ps.setDate(i, pDt);
-						}
-                    } else {
-                    	ps.setObject(i,params[i-1]);
-                    }
-                }
-            }
+
+            setParameters(ps, queryObj, params);
 
             rs = ps.executeQuery();
 
@@ -215,7 +232,12 @@ public class DataAccessObject
                         if (queryObj.getResult(i) != null) {
                         	columnName = queryObj.getResult(i);
                         }
-                        elemento.set(columnName,rs.getObject(i));
+                        int dataType = metaData.getColumnType(i);
+                        if (dataType == Types.TIMESTAMP) {
+                        	elemento.set(columnName,rs.getTimestamp(i));
+                        } else {
+                        	elemento.set(columnName,rs.getObject(i));
+                        }
                     }
                     col.add(elemento);
                 } while(rs.next() && (rs.getRow() < firstElement + nofElements));
@@ -264,6 +286,10 @@ public class DataAccessObject
         QueryResult result = null;
 
 		Query queryObj = getModel().getQuery(query);
+		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
+			queryObj = (Query) conditionalQueries.get(query);
+		}
+
 		String sql = queryObj.getStatement(variables);
 		logger.debug(sql);
 
@@ -273,29 +299,8 @@ public class DataAccessObject
     		}
 
             ps = con.prepareStatement(sql);
-            if (params != null) {
-                for (int i=1; i<= Arrays.asList(params).size(); i++) {
-                    logger.debug("("+i+") " + params[i-1]);
-                    Object thisParam = params[i-1];
-                    if (thisParam instanceof java.util.Date) {
-						int cType = this.model.getQuery(query).getParameter(i - 1);
-						long milis = ((java.util.Date) thisParam).getTime();
-						if (cType == Types.TIME) {
-							Time pTm = new Time(milis);
-							ps.setTime(i, pTm);
-						} else
-						if (cType == Types.TIMESTAMP) {
-							Timestamp pTm = new Timestamp(milis);
-							ps.setTimestamp(i, pTm);
-						} else {
-							java.sql.Date pDt = new java.sql.Date(milis); 
-							ps.setDate(i, pDt);
-						}
-                    } else {
-                    	ps.setObject(i,params[i-1]);
-                    }
-                }
-            }
+
+            setParameters(ps, queryObj, params);
 
             rs = ps.executeQuery();
 
@@ -309,7 +314,12 @@ public class DataAccessObject
                     if (queryObj.getResult(i) != null) {
                     	columnName = queryObj.getResult(i);
                     }
-                    result.set(columnName,rs.getObject(i));
+                    int dataType = metaData.getColumnType(i);
+                    if (dataType == Types.TIMESTAMP) {
+                    	result.set(columnName,rs.getTimestamp(i));
+                    } else {
+                    	result.set(columnName,rs.getObject(i));
+                    }
                 }
             }
 
@@ -472,7 +482,12 @@ public class DataAccessObject
 	{
 		PreparedStatement ps = null;
 
-		String sql = getModel().getQuery(query).getStatement(variables);
+		Query queryObj = getModel().getQuery(query);
+		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
+			queryObj = (Query) conditionalQueries.get(query);
+		}
+
+		String sql = queryObj.getStatement(variables);
 		logger.debug(sql);
 
 		try {
@@ -481,35 +496,8 @@ public class DataAccessObject
 			}
 
 			ps = con.prepareStatement(sql);
-			
-			if (params != null) {
-				for (int i = 1; i <= Arrays.asList(params).size(); i++) {
-					logger.debug("(" + i + ") " + params[i - 1]);
-                    Object thisParam = params[i-1];
-					if (thisParam != null) {
-	                    if (thisParam instanceof java.util.Date) {
-							int cType = this.model.getQuery(query).getParameter(i - 1);
-							long milis = ((java.util.Date) thisParam).getTime();
-							if (cType == Types.TIME) {
-								Time pTm = new Time(milis);
-								ps.setTime(i, pTm);
-							} else
-							if (cType == Types.TIMESTAMP) {
-								Timestamp pTm = new Timestamp(milis);
-								ps.setTimestamp(i, pTm);
-							} else {
-								java.sql.Date pDt = new java.sql.Date(milis); 
-								ps.setDate(i, pDt);
-							}
-	                    } else {
-	                    	ps.setObject(i, thisParam);
-	                    }
-					} else {
-						int cType = this.model.getQuery(query).getParameter(i - 1);
-						ps.setNull(i, cType);
-					}
-				}
-			}
+
+            setParameters(ps, queryObj, params);
 
 			return ps.executeUpdate();
 
@@ -578,7 +566,7 @@ public class DataAccessObject
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
-
+    // Transactions 
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
@@ -651,4 +639,69 @@ public class DataAccessObject
         }
     }
     
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // Conditional Queries
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+
+    /**
+     * Appends a conditional query to the end of a query
+     * @param queryName query name
+     * @param conditional conditional name
+     */
+    public void appendConditionalToQuery(String queryName, String conditional) {
+    	
+    	Query query = getModel().getQuery(queryName);
+    	Query condt = getModel().getQuery(conditional);
+    	
+    	if (query != null && condt != null) {
+    		try {
+    			query = (Query) query.clone();
+    			condt = (Query) condt.clone();
+    		} catch (CloneNotSupportedException e) {
+				query = null;
+				condt = null;
+			}
+    	}
+    	
+    	if (query != null && condt != null) {
+    		if (conditionalQueries == null) {
+    			conditionalQueries = new HashMap();
+    		}
+    		String qStatement = query.getStatement();
+    		String cStatement = condt.getStatement();
+    		if (qStatement != null && cStatement != null) {
+    			query.setStatement(qStatement.concat(" ".concat(cStatement)));
+    		}
+    		Vector qParameters = query.getParameters();
+    		Vector cParameters = condt.getParameters();
+    		if (qParameters != null && cParameters != null) {
+    			qParameters.addAll(cParameters);
+    			query.setParameters(qParameters);
+    		}
+    		conditionalQueries.put(query.getName(), query);
+    	}    		
+    }
+    
+    /**
+     * Removes the conditional appends for this query
+     * @param queryName name of the query 
+     */
+    public void resetConditionalQuery(String queryName) {
+    	if (conditionalQueries != null && queryName != null) {
+    		conditionalQueries.remove(queryName);
+    	}
+    }
+    
+    /**
+     * Removes all conditional queries for all queries
+     */
+    public void resetAllConditionals() {
+    	if (conditionalQueries != null) {
+    		conditionalQueries.clear();
+    	}
+    }
 }

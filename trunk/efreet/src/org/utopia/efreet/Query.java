@@ -9,7 +9,7 @@ import java.util.Vector;
  * This class represents a query statement to be called from a DAO
  */
 
-public class Query 
+public class Query implements Cloneable
 {
     protected String queryName = null;
     protected int queryType = 0;
@@ -24,6 +24,7 @@ public class Query
     public static final int Q_QUERY = 0;
     public static final int Q_UPDATE = 1;
     public static final int Q_PROCEDURE = 2;
+    public static final int Q_CONDITIONAL = 3;
 
     /**
      * Sets the query name
@@ -112,6 +113,22 @@ public class Query
     }
 
     /**
+     * @return the whole Parameters Vector
+     */
+    public Vector getParameters() {
+    	return this.parameters;
+    }
+    
+    /**
+     * Sets the whole Parameters Vector
+     * BEWARE !!! DANGEROUS OPERATION
+     * @param vParams Vector of parameters
+     */
+    public void setParameters(Vector vParams) {
+    	this.parameters = vParams;
+    }
+    
+    /**
      * Add a result name to the query
      * @param rName Name of the result
      */
@@ -155,5 +172,42 @@ public class Query
         }
         return null;
     }
+    
+    /**
+     * @return the whole Results Vector
+     */
+    public Vector getResults() {
+    	return this.results;
+    }
+    
+    /**
+     * Sets the whole Results Vector
+     * BEWARE !!! DANGEROUS OPERATION
+     * @param vResults
+     */
+    public void setResults(Vector vResults) {
+    	this.results = vResults;
+    }
+    
+	/* (non-Javadoc)
+	 * @see java.lang.Object#clone()
+	 */
+	protected Object clone() throws CloneNotSupportedException {
+		
+		Query clone = new Query();
+		clone.setName(this.queryName);
+		clone.setStatement(this.queryStatement);
+		clone.setType(this.queryType);
+		
+		if (this.parameters != null) {
+			clone.parameters = (Vector) this.parameters.clone();
+		}
+		
+		if (this.results != null) {
+			clone.results = (Vector) this.results.clone();
+		}
+		
+		return clone;
+	}
     
 }
