@@ -29,7 +29,7 @@
 <!ELEMENT query (#PCDATA|parameter|result)* >
 <!ATTLIST query  id             ID             #IMPLIED>
 <!ATTLIST query  name          CDATA           #REQUIRED>
-<!ATTLIST query  type (query|insert|update|delete) "query">
+<!ATTLIST query  type (query|update|procedure|conditional) "query">
 
 <!-- ========== Subordinate Elements ====================================== -->
 <!-- The "parameter" element represents the parameters to be passed
