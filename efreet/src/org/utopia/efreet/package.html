@@ -10,7 +10,7 @@
   <img src="doc-files/schema.gif"><br>
   Whereas : <br>
 <UL>
-  <LI>BLOb - Business Logic Object - This is an object to be implemented by the programmer using Efreet.<br>
+  <LI>BLOb - Business Logic Object - This represents any object in your system that will use the DAOs.<br>
   <LI>DAOFactory - The DAOFactory class is responsible of keeping the models and generate DAOs to be used by the BLObs.<br>
   <LI>DAOModel - A model based on an XML file to represent the DAO.<br>
   <LI>DAO - The Data Access Object - An object with the capability to access RDBMS.<br>
@@ -20,34 +20,80 @@
   The idea is to reduce programming time by only specifying necessary queries on the XML file, and use the functionality provided by the DAO to access the database.<br>
 
 <H2>XML File Example</H2>
-<PREE>
-&lt;DAO NAME="Example" TABLE="USER"&gt;<BR>
-  &lt;COLUMN NAME="USER_ID" REQUIRED="true" TYPE="NUMERIC" SIZE="8"&gt;&lt;/COLUMN&gt;<BR>
-  &lt;COLUMN NAME="LOGIN" REQUIRED="true" TYPE="CHAR" SIZE="8"&gt;&lt;/COLUMN&gt;<BR>
-  &lt;COLUMN NAME="NAME" REQUIRED="true" TYPE="CHAR" SIZE="40"&gt;&lt;/COLUMN&gt;<BR>
-  &lt;COLUMN NAME="PASSWORD" REQUIRED="true" TYPE="CHAR" SIZE="28"&gt;' '&lt;/COLUMN&gt;<BR>
-  &lt;COLUMN NAME="CHWHEN" REQUIRED="false" TYPE="DATE"&gt;sysdate&lt;/COLUMN&gt;<BR>
-  &lt;COLUMN NAME="CHWHO" REQUIRED="false" TYPE="NUMERIC" SIZE="8"&gt;0&lt;/COLUMN&gt;<BR>
-<BR>
-  &lt;QUERY NAME="nextUser"&gt;<BR>
-     select USER_ID.NEXTVAL as ID from DUAL<BR>
-     &lt;RESULT INDEX="1"&gt;USER_ID&lt;/RESULT&gt;<BR>
+<PRE>
+&lt;?xml version="1.0"?&gt;
+&lt;!DOCTYPE dao PUBLIC "DTD for Efreet DAO Configuration File 1.0//EN" "efreet-dao_1_0.dtd"&gt;
+
+&lt;DAO NAME="Example" &gt;<BR>
+  &lt;QUERY NAME="nextUser"&gt;
+&lt;![CDATA[
+     select USER_ID.NEXTVAL as ID from DUAL
+     &lt;RESULT INDEX="1"&gt;USER_ID&lt;/RESULT&gt;
+]]&gt;     
   &lt;/QUERY&gt;<BR>
-  &lt;QUERY NAME="search"&gt;<BR>
-     select USER_ID, LOGIN, NAME<BR>
-       from USER<BR>
-      where USER_ID <> 0<BR>
-        and USER_ID = decode(?, 0, USER_ID, '', USER_ID, ?)<BR>
-        and LOGIN LIKE '%'||?||'%'<BR>
-   order by LOGIN<BR>
-     &lt;PARAMETER INDEX="1" TYPE="NUMERIC"/&gt;<BR>
-     &lt;PARAMETER INDEX="2" TYPE="NUMERIC"/&gt;<BR>
-     &lt;PARAMETER INDEX="3" TYPE="CHAR"/&gt;<BR>
-     &lt;RESULT INDEX="1"&gt;S_USER_ID&lt;/RESULT&gt;<BR>
-     &lt;RESULT INDEX="2"&gt;S_LOGIN&lt;/RESULT&gt;<BR>
-     &lt;RESULT INDEX="3"&gt;S_NOME&lt;/RESULT&gt;<BR>
+  &lt;QUERY NAME="search"&gt;
+&lt;![CDATA[
+     select USER_ID, LOGIN, NAME
+       from USER
+      where USER_ID <> 0
+        and USER_ID = decode(?, 0, USER_ID, '', USER_ID, ?)
+        and LOGIN LIKE '%'||?||'%'
+   order by LOGIN
+]]&gt;     
+     &lt;PARAMETER INDEX="1" TYPE="NUMBER"/&gt;
+     &lt;PARAMETER INDEX="2" TYPE="NUMBER"/&gt;
+     &lt;PARAMETER INDEX="3" TYPE="CHAR"/&gt;
+     &lt;RESULT INDEX="1"&gt;S_USER_ID&lt;/RESULT&gt;
+     &lt;RESULT INDEX="2"&gt;S_LOGIN&lt;/RESULT&gt;
+     &lt;RESULT INDEX="3"&gt;S_NOME&lt;/RESULT&gt;
    &lt;/QUERY&gt;<BR>
 &lt;/DAO&gt;<BR>
+</PRE>
+
+<H2>Code Sample</H2>
+At anytime your objects can access the DAOs created by the factory with minimum coding :
+<PRE>
+    import org.utopia.efreet.DAOFactory;
+    import org.utopia.efreet.DataAccessObject;
+    import org.utopia.efreet.QueryParameter;
+    import org.utopia.efreet.QueryResult;
+
+    ...
+    
+    // Example 1
+    // Retrieving a single line of results using a query
+    
+    DataAccessObject dao = DAOFactory.createDAO("example");
+    
+    QueryResult qr = dao.executeQuerySingle("nextUser");
+    
+    int i = qr.getInt("USER_ID");
+    
+    ...
+    
+    // Example 2
+    // Retrieving a collection of lines using a query
+    // First we create a QueryParameter object and populate it, 
+    // this are the parameters to be passed to the query
+    QueryParameter qp = new QueryParameter();
+    qp.add(i);
+    qp.add(i);
+    qp.add("login");
+    
+    Collection col = dao.executeQuery("search", qp);
+    
+    // This is a Collection of objects of type QueryResult
+    // To retrieve the value you must iterate over it 
+    Iterator iter = col.iterator();
+    while (it.hasNext()) {
+        QueryResult qr = (QueryResult) it.next();
+        int userId = qr.getInt("S_USER_ID");
+        String login = qr.getString("S_LOGIN");
+        String name = qr.getString("S_NOME");
+    }
+
+    ...
+
 </PRE>
 
 @since 1.3
