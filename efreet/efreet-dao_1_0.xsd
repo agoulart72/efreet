@@ -46,10 +46,22 @@ elementFormDefault="qualified">
 				<xs:enumeration value="timestamp"/>
 			 </xs:restriction>
 	</xs:attribute>
+	<xs:attribute name="size" type="xs:positiveInteger" use="required"/> 
+	<xs:simplecontent/>
 </xs:complexType>
 
 <xs:complexType name="xs:resultType">
 	<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
+	<xs:attribute name="type"> 
+		<xs:simpleType name="paramType">
+			 <xs:restriction base="xs:string">
+				<xs:enumeration value="number"/>
+				<xs:enumeration value="char"/>
+				<xs:enumeration value="date"/>
+				<xs:enumeration value="time"/>
+				<xs:enumeration value="timestamp"/>
+			 </xs:restriction>
+	</xs:attribute>
 	<xs:simplecontent/>
 </xs:complexType>
 
