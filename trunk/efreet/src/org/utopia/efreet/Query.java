@@ -82,6 +82,7 @@ public class Query implements Cloneable
     
     /**
      * Add a parameter to the query
+     * @deprecated use {@link #addParameterAt(ParameterModel, int)} instead
      * @param pType Type of parameter (possible values Query.P_NUMERIC, Query.P_CHAR, Query.P_DATE )
      */
     public void addParameter(int pType) {
@@ -89,6 +90,20 @@ public class Query implements Cloneable
         parameters.add(new Integer(pType));
     }
 
+    /**
+     * Add a parameter model to the query
+     * @param pm parameter model
+     * @param pos position in the vector
+     */
+    public void addParameterAt(ParameterModel pm, int pos) {
+    	if (parameters == null) parameters = new Vector();
+    	if (pos >= parameters.size()) {
+    		parameters.setSize(pos + 1);
+    		parameters.ensureCapacity(pos + 1);
+    	}
+    	parameters.setElementAt(pm, pos);
+    }
+    
     /**
      * Retrieve the number of parameters
      * @return Number of parameters
@@ -130,6 +145,7 @@ public class Query implements Cloneable
     
     /**
      * Add a result name to the query
+     * @deprecated use {@link #addResultAt(ResultModel, int)} instead
      * @param rName Name of the result
      */
     public void addResult(String rName) {
@@ -139,6 +155,7 @@ public class Query implements Cloneable
     
     /**
      * Add a result name to the query at a defined position
+     * @deprecated use {@link #addResultAt(ResultModel, int)} instead
      * @param rName Name of the result
      */
     public void addResultAt(String rName, int pos) {
@@ -149,7 +166,20 @@ public class Query implements Cloneable
     	}
 		results.setElementAt(rName, pos);
     }
-    
+
+    /**
+     * Add a result name to the query at a defined position
+     * @param rModel Model for the result
+     */
+    public void addResultAt(ResultModel rModel, int pos) {
+    	if (results == null) results = new Vector();
+    	if (pos >= results.size()) {
+    		results.setSize(pos + 1);
+    		results.ensureCapacity(pos + 1);
+    	}
+		results.setElementAt(rModel, pos);
+    }
+
     /**
      * Retrieve the number of resulting columns that will be retrieved by
      * the query
@@ -165,14 +195,37 @@ public class Query implements Cloneable
      * @param pos position of the column retrieved
      * @return name of the column retrieved
      */
-    public String getResult(int pos) {
+    public ResultModel getResult(int pos) {
         if ((results != null) && 
             (pos >= 0 && pos < results.size())) {
-            return (String) results.get(pos);
+        	Object obj = results.get(pos);
+        	if (obj != null && obj instanceof ResultModel) {
+        		return (ResultModel) obj;
+        	}
         }
         return null;
     }
-    
+
+    /**
+     * Get the result name for a column retrieved by the query
+     * @param pos position of the column retrieved
+     * @return name of the column retrieved
+     */
+    public String getResultName(int pos) {
+        if ((results != null) && 
+            (pos >= 0 && pos < results.size())) {
+        	Object obj = results.get(pos);
+        	if (obj != null && obj instanceof ResultModel) {
+        		return ((ResultModel) obj).getResultName();
+        	}
+        	// Legacy conversion
+        	if (obj != null && obj instanceof String) {
+        		return (String) results.get(pos);
+        	}
+        }
+        return null;
+    }
+
     /**
      * @return the whole Results Vector
      */

@@ -1,5 +1,5 @@
 /*
- * $Id: ResourceableException.java,v 1.3 2006-10-23 20:53:49 agoulart Exp $
+ * $Id: ResourceableException.java,v 1.4 2007-01-30 18:08:04 agoulart Exp $
  */
 package org.utopia.common;
 

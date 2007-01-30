@@ -1,5 +1,6 @@
 package org.utopia.efreet;
 
+import java.sql.Timestamp;
 import java.util.HashMap;
 
 import java.math.BigDecimal;
@@ -16,7 +17,10 @@ import java.util.Calendar;
  */
 public class QueryResult
 {
-    private HashMap values = null;
+	/**
+	 * WARNING !!! Do not change the values in this hashmap
+	 */
+    protected HashMap values = null;
 
     /**
      * Altera Valores de Colunas
@@ -212,6 +216,72 @@ public class QueryResult
        	
 	return retornoAsString;
     }
+    
+    public Timestamp getTimestamp(String nomeColuna) throws DAOException
+    {
+    	Object retorno = get(nomeColuna);
+    	if (retorno == null) return null;
+    	if (retorno instanceof java.sql.Timestamp) {
+    	    return (java.sql.Timestamp) retorno;
+    	}
+    	if (retorno instanceof java.sql.Date) {
+    	    return new Timestamp(((java.sql.Date) retorno).getTime());
+    	}
+    	if (retorno instanceof java.util.Date) {
+    	    return new Timestamp(((java.util.Date) retorno).getTime());
+    	}
+    	return new Timestamp((new java.util.Date()).getTime());
+    }
+    
+    public String getTimestampAsString(String nomeColuna) throws DAOException
+    {
+    	Object retorno = get(nomeColuna);
+    	if (retorno == null) return null;
+
+    	Calendar clnd = Calendar.getInstance();
+
+    	if (retorno instanceof java.sql.Timestamp) {
+    	    clnd.setTime((java.sql.Timestamp) retorno);
+    	}
+    	if (retorno instanceof java.util.Date) {
+    	    clnd.setTime((java.util.Date) retorno);
+    	}
+
+    	String retornoAsString = "";
+    	int dia = clnd.get(Calendar.DAY_OF_MONTH);
+    	int mes = clnd.get(Calendar.MONTH) + 1;
+    	int ano = clnd.get(Calendar.YEAR);
+    	if (dia < 10) retornoAsString += "0";
+    	retornoAsString += dia +"/";
+    	if (mes < 10) retornoAsString += "0";
+    	retornoAsString += mes +"/";
+    	if (ano < 1000) retornoAsString += "0";
+    	if (ano < 100) retornoAsString += "0";
+    	if (ano < 10) retornoAsString += "0";
+    	retornoAsString += ano + " ";
+    	
+    	int hora = clnd.get(Calendar.HOUR_OF_DAY);
+    	int mins = clnd.get(Calendar.MINUTE);
+    	int secs = clnd.get(Calendar.SECOND);
+        if (hora < 10) retornoAsString += "0";
+    	retornoAsString += hora +":";
+        if (mins < 10) retornoAsString += "0";
+    	retornoAsString += mins +":";
+        if (secs < 10) retornoAsString += "0";
+    	retornoAsString += secs;
+    	
+    	return retornoAsString;
+    }
+
+    /**
+     * Returns a hashmap containing all the results
+     * WARNING !!!! Restricted use 
+     * @return HashMap
+     */
+    protected HashMap getHash() {
+    	return this.values;
+    }
+    
 }
 
     
