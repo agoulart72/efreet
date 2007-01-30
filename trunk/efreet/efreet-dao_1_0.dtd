@@ -42,9 +42,10 @@
         CHAR - for any kind of character string result
         DATE - for date, time and timestamp result
 -->
-<!ELEMENT parameter EMPTY>
+<!ELEMENT parameter (#PCDATA)>
 <!ATTLIST parameter index   CDATA  #REQUIRED>
 <!ATTLIST parameter type   (number|char|date|time|timestamp|NUMBER|CHAR|DATE|TIME|TIMESTAMP) #REQUIRED>
+<!ATTLIST parameter size    CDATA "0">
 
 <!-- The "result" element represents the mapping for the return of
      each column in the result of the query statement 
@@ -53,8 +54,12 @@
             a QueryResult object.
     
      index - the sequence the element is returned
+     type - can assume one of the following values :
+        NUMBER - for any kind of numerical result
+        CHAR - for any kind of character string result
+        DATE - for date, time and timestamp result
 -->
 <!ELEMENT result (#PCDATA)>
 <!ATTLIST result index  CDATA   #REQUIRED>
-
+<!ATTLIST parameter type (number|char|date|time|timestamp|NUMBER|CHAR|DATE|TIME|TIMESTAMP) "char">
 
