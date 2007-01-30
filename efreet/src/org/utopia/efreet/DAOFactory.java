@@ -158,34 +158,78 @@ public class DAOFactory
                     Iterator paramList = thisQuery.getChildren("parameter").iterator();
                     while (paramList.hasNext()) {
                         Element thisParam = (Element) paramList.next();
+                        ParameterModel pModel = new ParameterModel();
+                        pModel.setParamName(thisParam.getTextNormalize());
+                        try {
+                        	String psiz = thisParam.getAttributeValue("size");
+                            pModel.setParamSize(Integer.parseInt(psiz));
+                        } catch (Exception e) {
+                        	pModel.setParamSize(0);
+						}
                         String pType = thisParam.getAttributeValue("type");
+                        int iType = Types.JAVA_OBJECT;
                         if (pType != null) {
 	                        if (pType.equalsIgnoreCase("number") || pType.equalsIgnoreCase("numeric")) {
-	                        	q.addParameter(Types.NUMERIC);
+	                        	iType = Types.NUMERIC;
 	                        } else if (pType.equalsIgnoreCase("char")) {
-	                        	q.addParameter(Types.CHAR);
+	                        	iType = Types.CHAR;
 	                        } else if (pType.equalsIgnoreCase("date")) {
-	                        	q.addParameter(Types.DATE);
+	                        	iType = Types.DATE;
 	                        } else if (pType.equalsIgnoreCase("time")) {
-	                        	q.addParameter(Types.TIME);
+	                        	iType = Types.TIME;
 	                        } else if (pType.equalsIgnoreCase("timestamp")) {
-	                        	q.addParameter(Types.TIMESTAMP);
+	                        	iType = Types.TIMESTAMP;
 	                        } else {
-	                        	q.addParameter(Types.JAVA_OBJECT);
+	                        	iType = Types.JAVA_OBJECT;
 	                        }
-                        } else {
-                        	q.addParameter(Types.JAVA_OBJECT);
+                        }
+                        pModel.setParamType(iType);
+                        // q.addParameter(iType);
+                        String posParam = thisParam.getAttributeValue("index");
+                        if (posParam != null) {
+                        	try {
+                        		int posP = Integer.parseInt(posParam);
+                        		q.addParameterAt(pModel, posP);
+                        	} catch (Exception e) {
+                        		logger.warn("Error on XML file parameter ", e);
+							}
                         }
                     }
 
                     Iterator resultList = thisQuery.getChildren("result").iterator();
                     while (resultList.hasNext()) {
                         Element thisResult = (Element) resultList.next();
+                        ResultModel rModel = new ResultModel();
+                        rModel.setResultName(thisResult.getTextNormalize());
+                        try {
+                        	String psiz = thisResult.getAttributeValue("size");
+                            rModel.setResultSize(Integer.parseInt(psiz));
+                        } catch (Exception e) {
+                        	rModel.setResultSize(0);
+						}
+                        String pType = thisResult.getAttributeValue("type");
+                        int iType = Types.JAVA_OBJECT;
+                        if (pType != null) {
+	                        if (pType.equalsIgnoreCase("number") || pType.equalsIgnoreCase("numeric")) {
+	                        	iType = Types.NUMERIC;
+	                        } else if (pType.equalsIgnoreCase("char")) {
+	                        	iType = Types.CHAR;
+	                        } else if (pType.equalsIgnoreCase("date")) {
+	                        	iType = Types.DATE;
+	                        } else if (pType.equalsIgnoreCase("time")) {
+	                        	iType = Types.TIME;
+	                        } else if (pType.equalsIgnoreCase("timestamp")) {
+	                        	iType = Types.TIMESTAMP;
+	                        } else {
+	                        	iType = Types.JAVA_OBJECT;
+	                        }
+                        }
+                        rModel.setResultType(iType);
                         String posResult = thisResult.getAttributeValue("index");
                         if (posResult != null) {
                         	try {
                         		int posR = Integer.parseInt(posResult);
-                        		q.addResultAt(thisResult.getTextNormalize(), posR);
+                        		q.addResultAt(rModel, posR);
                         	} catch (NumberFormatException e) {
 								logger.warn("Error on XML file result ", e);
 							}
