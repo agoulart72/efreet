@@ -4,19 +4,22 @@ import java.sql.Types;
 
 /**
  * @author Adriano M Goulart
- * @version $Id: ResultModel.java,v 1.1 2007-01-30 18:14:57 agoulart Exp $
+ * @version $Id: ResultModel.java,v 1.2 2012-05-22 13:34:43 agoulart Exp $
  */
-public class ResultModel {
+public class ResultModel implements Comparable<ResultModel>, Cloneable {
 
-	/** Parameter Type */
+	/** Result Type */
 	private int resultType = Types.NULL;
 	
-	/** Parameter Name */
+	/** Result Name */
 	private String resultName = null;
 	
-	/** Parameter Size */
+	/** Result Size */
 	private int resultSize = 0;
 
+	/** Result Index */
+	private int resultIndex = 0;
+	
 	/**
 	 * @return the resultName
 	 */
@@ -27,8 +30,8 @@ public class ResultModel {
 	/**
 	 * @param resultName the resultName to set
 	 */
-	public void setResultName(String paramName) {
-		this.resultName = paramName;
+	public void setResultName(String resultName) {
+		this.resultName = resultName;
 	}
 
 	/**
@@ -41,8 +44,8 @@ public class ResultModel {
 	/**
 	 * @param resultSize the resultSize to set
 	 */
-	public void setResultSize(int paramSize) {
-		this.resultSize = paramSize;
+	public void setResultSize(int resultSize) {
+		this.resultSize = resultSize;
 	}
 
 	/**
@@ -55,9 +58,65 @@ public class ResultModel {
 	/**
 	 * @param resultType the resultType to set
 	 */
-	public void setResultType(int paramType) {
-		this.resultType = paramType;
+	public void setResultType(int resultType) {
+		this.resultType = resultType;
+	}
+
+	/**
+	 * @return the resultIndex
+	 */
+	public int getResultIndex() {
+		return resultIndex;
+	}
+
+	/**
+	 * @param resultIndex the resultIndex to set
+	 */
+	public void setResultIndex(int resultIndex) {
+		this.resultIndex = resultIndex;
 	}
 	
-	
+	/**
+	 * Implements Comparable Interface, compares the models based on the Index
+	 */
+	public int compareTo(ResultModel o) {
+		return this.resultIndex - o.getResultIndex();
+	}
+
+	/**
+	 * DEBUG purpose
+	 * @return the type of the result in human readable format
+	 */
+	public String getResultTypeDescription() {
+		switch (this.resultType) {
+		case java.sql.Types.TIME : return "<TIME>";
+		case java.sql.Types.TIMESTAMP : return "<TIMESTAMP>";
+		case java.sql.Types.DATE : return "<DATE>";
+		case java.sql.Types.NUMERIC : return "<NUMBER>";
+		case java.sql.Types.CHAR : return "<CHAR>";
+		case java.sql.Types.BLOB : return "<BLOB>";
+		case java.sql.Types.CLOB : return "<CLOB>";
+		case java.sql.Types.JAVA_OBJECT : return "<OBJECT>";
+		default : return "<NONE>";
+		}
+	}
+
+	@Override
+	public String toString() {
+		return "[" + this.resultIndex + "] " + this.resultName + getResultTypeDescription() + "(" + this.resultSize + ")";
+	}
+
+	/**
+	 * @see java.lang.Object#clone()
+	 */
+	protected ResultModel clone() throws CloneNotSupportedException {
+		
+		ResultModel clone = new ResultModel();
+		clone.setResultIndex(getResultIndex());
+		clone.setResultName(getResultName());
+		clone.setResultSize(getResultSize());
+		clone.setResultType(getResultType());
+		
+		return clone;
+	}
 }

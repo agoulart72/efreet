@@ -5,20 +5,24 @@ xmlns="http://www.w3schools.com"
 elementFormDefault="qualified">
 <xs:element name="dao">
     <xs:complexType>
-	  <xs:attribute name="id" type="xs:positiveInteger"/> 
-	  <xs:attribute name="name" type="xs:string"/> 
-	  <xs:attribute name="datasource" type="xs:string" use="required"/> 
       <xs:sequence>
   	    <xs:element name="query" type="queryType" />
       </xs:sequence>
+	  <xs:attribute name="id" type="xs:positiveInteger"/> 
+	  <xs:attribute name="name" type="xs:string"/> 
+	  <xs:attribute name="datasource" type="xs:string" use="required"/> 
     </xs:complexType>
 </xs:element>
 
-<xs:complexType name="xs:queryType">
+<xs:complexType name="queryType" mixed="true">
+	<xs:sequence>
+		<xs:element name="parameter" type="parameterType"/>
+    	<xs:element name="result" type="resultType" />
+    </xs:sequence>
 	<xs:attribute name="id" type="xs:positiveInteger"/> 
 	<xs:attribute name="name" type="xs:string" use="required"/> 
 	<xs:attribute name="type"> 
-		<xs:simpleType name="qryType">
+		<xs:simpleType>
 			 <xs:restriction base="xs:string">
 				<xs:enumeration value="query"/>
 				<xs:enumeration value="update"/>
@@ -27,42 +31,42 @@ elementFormDefault="qualified">
 			 </xs:restriction>
 		</xs:simpleType>
 	</xs:attribute>
-	<xs:simplecontent/>
-	<xs:sequence>
-		<xs:element name="parameter" type="parameterType"/>
-	    <xs:element name="result" type="resultType" />
-    </xs:sequence>
 </xs:complexType>
 
-<xs:complexType name="xs:parameterType">
-	<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
-	<xs:attribute name="type" use="required"> 
-		<xs:simpleType name="paramType">
-			 <xs:restriction base="xs:string">
-				<xs:enumeration value="number"/>
-				<xs:enumeration value="char"/>
-				<xs:enumeration value="date"/>
-				<xs:enumeration value="time"/>
-				<xs:enumeration value="timestamp"/>
-			 </xs:restriction>
-	</xs:attribute>
-	<xs:attribute name="size" type="xs:positiveInteger" use="required"/> 
-	<xs:simplecontent/>
+<xs:complexType name="parameterType">
+	<xs:simpleContent>
+		<xs:extension base="xs:string">
+			<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
+			<xs:attributeGroup ref="typeNameGroup"/>
+			<xs:attribute name="size" type="xs:positiveInteger" use="required"/> 
+		</xs:extension>
+	</xs:simpleContent>
 </xs:complexType>
 
-<xs:complexType name="xs:resultType">
-	<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
+<xs:complexType name="resultType">
+	<xs:simpleContent>
+		<xs:extension base="xs:string">
+			<xs:attribute name="index" type="xs:positiveInteger" use="required"/> 
+			<xs:attributeGroup ref="typeNameGroup"/>
+		</xs:extension>
+	</xs:simpleContent>
+</xs:complexType>
+
+<xs:attributeGroup name="typeNameGroup">
 	<xs:attribute name="type"> 
-		<xs:simpleType name="paramType">
-			 <xs:restriction base="xs:string">
+		<xs:simpleType>
+			<xs:restriction base="xs:string">
 				<xs:enumeration value="number"/>
 				<xs:enumeration value="char"/>
 				<xs:enumeration value="date"/>
 				<xs:enumeration value="time"/>
 				<xs:enumeration value="timestamp"/>
-			 </xs:restriction>
+				<xs:enumeration value="blob"/>
+				<xs:enumeration value="clob"/>
+				<xs:enumeration value="object"/>
+		 	</xs:restriction>
+		</xs:simpleType>
 	</xs:attribute>
-	<xs:simplecontent/>
-</xs:complexType>
+</xs:attributeGroup>
 
 </xs:schema>

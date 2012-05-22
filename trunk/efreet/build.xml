@@ -40,7 +40,7 @@
     <!-- Normal build of application -->
     <target name="compile" depends="prepare,resources">
         <echo>Compiling to bin</echo>
-        <javac srcdir="src" destdir="bin">
+        <javac srcdir="src" destdir="bin" debug="true">
             <classpath refid="compile.classpath"/>
         </javac>
     </target>
@@ -87,6 +87,16 @@
         basedir="bin"/>
     </target>
 
+	<target name="mock">
+        <echo>Compiling Mock to bin</echo>
+        <javac srcdir="mock" destdir="bin" debug="true">
+            <classpath refid="compile.classpath"/>
+        </javac>
+	    <mkdir dir="${deploy.home}/mock"/>
+	      <jar
+	        jarfile="${deploy.home}/mock/${project.distname}mock.jar"
+	        basedir="bin"/>		
+	</target>
 
     <!-- Build project and create distribution-->
     <target name="all" depends="project,dist"/>

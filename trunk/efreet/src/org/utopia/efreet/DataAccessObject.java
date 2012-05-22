@@ -1,8 +1,13 @@
 /*
- * $Id: DataAccessObject.java,v 1.5 2007-01-30 18:08:04 agoulart Exp $
+ * $Id: DataAccessObject.java,v 1.6 2012-05-22 13:34:42 agoulart Exp $
  */
 package org.utopia.efreet;
 
+import java.io.OutputStream;
+import java.io.Writer;
+import java.math.BigDecimal;
+import java.sql.Blob;
+import java.sql.Clob;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -11,13 +16,16 @@ import java.sql.SQLException;
 import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
+import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.Vector;
+import java.util.Locale;
+import java.util.SortedSet;
 
 import org.apache.log4j.Logger;
+import org.utopia.common.util.ConnectionUtil;
 
 /**
  * DAO basic class <br>
@@ -42,6 +50,8 @@ public class DataAccessObject
     protected int totalLastQuery = 0;
     /** The model of this DAO */
     protected DAOModel model = null;
+    /** Data Source name */
+    protected String dataSource = null;
     /** Flag que indica modo de transacao para fechar a conexao */
     protected boolean transactionMode = false; 
  
@@ -55,9 +65,14 @@ public class DataAccessObject
     public DAOModel getModel() { return this.model; }
     public void setModel(DAOModel param) { 
         this.model = param; 
+        this.dataSource = this.model.getDataSource();
     }
+    public String getDataSource() { return this.dataSource!=null?this.dataSource:this.model.getDataSource(); }
+    public void setDataSource(String param) { this.dataSource = param; }
+    
+    private HashMap<String, QueryModel> conditionalQueries = null;
 
-    private HashMap conditionalQueries = null;
+    private ArrayList<QueryInBatch> batchQueries = null;
     
     // ----------------------------------------------------------------------
     // ----------------------------------------------------------------------
@@ -65,133 +80,207 @@ public class DataAccessObject
 
     /**
      * Sets the parameters to the prepared statement
-     * @deprecated Use {@link #setParameters(PreparedStatement, Query, QueryParameter)} instead
-     * @param ps prepared statement
-     * @param queryObj Query object
-     * @param parameters
-     */
-//    private void setParameters(PreparedStatement ps, Query queryObj, Object[] params)
-//    	throws SQLException, Exception
-//    {
-//        if (params != null) {
-//            for (int i=1; i<= Arrays.asList(params).size(); i++) {
-//                logger.debug("(" + i + ") " + params[i - 1]);
-//                Object thisParam = params[i-1];
-//				if (thisParam != null) {
-//	                if (thisParam instanceof java.util.Date) {
-//						int cType = queryObj.getParameter(i - 1);
-//						long milis = ((java.util.Date) thisParam).getTime();
-//						if (cType == Types.TIME) {
-//							logger.debug("[TIME]");
-//							Time pTm = new Time(milis);
-//							ps.setTime(i, pTm);
-//						} else
-//						if (cType == Types.TIMESTAMP) {
-//							logger.debug("[TIMESTAMP]");
-//							Timestamp pTm = new Timestamp(milis);
-//							ps.setTimestamp(i, pTm);
-//						} else {
-//							logger.debug("[DATE]");
-//							java.sql.Date pDt = new java.sql.Date(milis); 
-//							ps.setDate(i, pDt);
-//						}
-//	                } else {
-//	                	ps.setObject(i,params[i-1]);
-//	                }
-//				} else {
-//					int cType = queryObj.getParameter(i - 1);
-//					ps.setNull(i, cType);
-//				}
-//            }
-//        }
-//    }
-
-    /**
-     * Sets the parameters to the prepared statement
      * @param ps prepared statement
      * @param queryObj Query object
      * @param params parameters
      */
-    private void setParameters(PreparedStatement ps, Query queryObj, QueryParameter params)
+    private void setParameters(PreparedStatement ps, QueryModel queryObj, QueryParameter params)
     	throws SQLException, Exception
     {
-    	Vector vp = queryObj.getParameters();
+    	SortedSet<ParameterModel> vp = queryObj.getParameters();
+    	
     	if (vp != null && params != null) {
-    		for (int i = 1; i < vp.size(); i++) {
-    			Object thisObj = vp.get(i);
-    			if (thisObj != null && thisObj instanceof ParameterModel) {
-    				ParameterModel model = (ParameterModel) thisObj;
-    				
-    				Object thisParam = null;
-    				
-    				if (params.getParametersHash() != null && !params.getParametersHash().isEmpty()) {
-    					// Hashtable style
-    					thisParam = params.get(model.getParamName());
-    				} else {
-    					// Old - Vector style
-    					thisParam = params.getParameters()[i-1];
-    				}
-    				if (thisParam != null) {
-    	                if (thisParam instanceof java.util.Date) {
-    						long milis = ((java.util.Date) thisParam).getTime();
-    						if (model.getParamType() == Types.TIME) {
-    							logger.debug("[TIME]");
-    							Time pTm = new Time(milis);
-    							ps.setTime(i, pTm);
-    						} else
+    		for (ParameterModel model : vp) { 
+    			Object thisParam = null;
+
+    			// Static values set inside the parameter, used for conditionals
+    			if (model.getStaticValue() != null) {
+    				thisParam = model.getStaticValue();
+    			} else
+    			if (params.getParametersHash() != null && !params.getParametersHash().isEmpty()) {
+    				// Hashtable style
+    				thisParam = params.get(model.getParamName());
+    			} else {
+    				// Old - Vector style
+    				thisParam = params.getParameters()[model.getParamIndex()-1];
+    			}
+    			if (thisParam != null) {
+    				logger.trace(model  + " = " + thisParam.toString());
+    				if (thisParam instanceof java.util.Date) {
+    					long milis = ((java.util.Date) thisParam).getTime();
+    					if (model.getParamType() == Types.TIME) {
+    						Time pTm = new Time(milis);
+    						ps.setTime(model.getParamIndex(), pTm);
+    					} else
     						if (model.getParamType() == Types.TIMESTAMP) {
-    							logger.debug("[TIMESTAMP]");
     							Timestamp pTm = new Timestamp(milis);
-    							ps.setTimestamp(i, pTm);
+    							ps.setTimestamp(model.getParamIndex(), pTm);
     						} else {
-    							logger.debug("[DATE]");
     							java.sql.Date pDt = new java.sql.Date(milis); 
-    							ps.setDate(i, pDt);
+    							ps.setDate(model.getParamIndex(), pDt);
     						}
-    	                } else {
-    	                	if (model.getParamType() == Types.CHAR && thisParam instanceof String) {
-    	                		if (model.getParamSize() > 0 
-    	                		   && ((String) thisParam).length() > model.getParamSize()) {
-    	                			ps.setString(i, ((String) thisParam).substring(0, model.getParamSize()));
-    	                		} else {
-    	                			ps.setString(i, ((String) thisParam));
-    	                		}
-    	                	} else {
-    	                		ps.setObject(i, thisParam);
-    	                	}
-    	                }
     				} else {
-    					ps.setNull(i, model.getParamType());
+    					if (model.getParamType() == Types.CHAR && thisParam instanceof String) {
+    						if (model.getParamSize() > 0 
+    								&& ((String) thisParam).length() > model.getParamSize()) {
+    							ps.setString(model.getParamIndex(), ((String) thisParam).substring(0, model.getParamSize()));
+    						} else {
+    							ps.setString(model.getParamIndex(), ((String) thisParam));
+    						}
+    					} else if (model.getParamType() == Types.CHAR && thisParam instanceof Character) {
+    						ps.setString(model.getParamIndex(), String.valueOf(thisParam));
+    					} else if (model.getParamType() == Types.NUMERIC && thisParam instanceof String) {
+
+    						// Format number    	                		
+    						String tmp = ((String) thisParam).replaceAll(",", ".");
+    						while (tmp.lastIndexOf('.') > 0 && tmp.lastIndexOf('.') > tmp.indexOf('.')) {
+    							tmp = tmp.replaceFirst("\\.", "");
+    						}
+
+    						if (tmp.trim().length() == 0) {
+    		    				logger.trace(model + " = null");
+    		    				ps.setNull(model.getParamIndex(), model.getParamType());    							
+    						} else {
+        						NumberFormat nf = NumberFormat.getInstance(Locale.US);
+        						Number nmb = nf.parse(tmp);
+
+        						ps.setBigDecimal(model.getParamIndex(), new BigDecimal(nmb.doubleValue()));
+    						}    						
+    					} else if (model.getParamType() == Types.BLOB) {
+    						// Supports byte [] or String
+
+    						Blob myBlob = ConnectionUtil.createBlob(ConnectionUtil.getInnermostConnection(con));
+
+    						if (myBlob != null) {
+    							OutputStream out = myBlob.setBinaryStream(0);
+    							if (thisParam instanceof byte[] ) {
+    								out.write ((byte[])thisParam);
+    							} else {
+    								out.write(String.valueOf(thisParam).getBytes());    	                				
+    							}
+    							out.flush();
+    							out.close();
+    						}
+
+    						ps.setBlob(model.getParamIndex(), myBlob);
+
+    					} else if (model.getParamType() == Types.CLOB) {
+    						// Supports String
+
+    						Clob myClob = ConnectionUtil.createClob(ConnectionUtil.getInnermostConnection(con));
+
+    						if (myClob != null) {
+    							Writer writer = myClob.setCharacterStream(0);
+    							// Oracle specific
+    							// Writer writer = ((oracle.sql.CLOB)myClob).getCharacterOutputStream();   
+    							writer.write(String.valueOf(thisParam));
+    							writer.flush();
+    							writer.close();
+    						}
+
+    						ps.setClob(model.getParamIndex(), myClob);
+
+    					} else {    	                		
+    						ps.setObject(model.getParamIndex(), thisParam);
+    					}
     				}
+    			} else {
+    				logger.trace(model + " = null");
+    				ps.setNull(model.getParamIndex(), model.getParamType());
     			}
     		}
     	}
     }
 
     /**
+     * Retrieve the QueryObj from the model.
+     * If the query was modified by some conditional, retrieves the conditional query.
+     * If the query was pushed into a batch, retrieves the query at the time.
+     * @param queryName Key to identify the query
+     * @return Query object containing query
+     * @throws DAOException error
+     */
+    private QueryModel getQuery(String queryName)
+    	throws DAOException
+    {
+		QueryModel queryObj = getModel().getQuery(queryName);
+		if (queryObj == null) {
+			throw new DAOException("Query not found on DAO : " + queryName);
+		}
+		if (conditionalQueries != null && conditionalQueries.containsKey(queryName)) {
+			queryObj = conditionalQueries.get(queryName);
+		}
+		
+		return queryObj;
+    }
+    
+    /**
+     * Fill up the QueryResult based on a resultset
+     * @return QueryResult with values 
+     * @throws DAOException error
+     */
+    private QueryResult fillResult(QueryModel queryObj, ResultSet rs) 
+    	throws DAOException, SQLException
+    {
+    	ResultSetMetaData metaData = rs.getMetaData();
+    	int numberOfColumns = metaData.getColumnCount();
+    	
+        QueryResult elemento = new QueryResult();
+        
+        for (int i=1; i<=numberOfColumns; i++) {
+        	ResultModel rModel = queryObj.getResult(i);
+
+        	String columnName = metaData.getColumnName(i);
+            if (rModel != null && rModel.getResultName() != null) {
+            	columnName = rModel.getResultName();
+            }
+            int dataType = metaData.getColumnType(i);
+            if (rModel != null && rModel.getResultType() != Types.JAVA_OBJECT) {
+            	dataType = rModel.getResultType();
+            }
+            if (dataType == Types.DATE) {
+            	elemento.set(columnName,rs.getDate(i));
+            } else
+            if (dataType == Types.TIMESTAMP) {
+            	elemento.set(columnName,rs.getTimestamp(i));
+            } else
+            if  (dataType == Types.BLOB) {
+            	Blob tmpBlob = rs.getBlob(i);            	
+                elemento.set(columnName, tmpBlob.getBytes(0, (int) tmpBlob.length()));
+            } else
+            if  (dataType == Types.CLOB) {
+            	Clob tmpClob = rs.getClob(i);
+            	elemento.set(columnName, tmpClob.getSubString(0, (int) tmpClob.length()));
+            } else {
+            	elemento.set(columnName,rs.getObject(i));
+            }
+        }
+        
+        return elemento;
+    }
+    
+    /**
      * Basic Query Operation - Several Elements
      *
      * @param query Name of the query defined for the query to be executed
      * @param params object QueryParameter with the parameters for the query
      */
-    public Collection executeQuery(String query, QueryParameter params)
+    public Collection<QueryResult> executeQuery(String query, QueryParameter params)
         throws DAOException
     {
 		PreparedStatement ps = null;
 		ResultSet rs = null;
-		ArrayList col = new ArrayList();
+		ArrayList<QueryResult> col = new ArrayList<QueryResult>();
 
-		Query queryObj = getModel().getQuery(query);
-		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
-			queryObj = (Query) conditionalQueries.get(query);
-		}
+		QueryModel queryObj = getQuery(query);
 		
 		String sql = queryObj.getStatement(params.getVariables());
-		logger.debug(sql);
+		logger.debug("Executing " + query);
+		logger.trace(sql);
 
 		try {
     		if (con == null || con.isClosed()) {
-    			con = DataSource.getInstance().getConnection(getModel().getDataSource());
+    			con = DataSource.getConnection(getDataSource(), model.getName() , query);
     		}
 
             ps = con.prepareStatement(sql);
@@ -200,52 +289,29 @@ public class DataAccessObject
 
             rs = ps.executeQuery();
 
-            ResultSetMetaData metaData = rs.getMetaData();
-            int numberOfColumns = metaData.getColumnCount();
-
             while(rs.next()) {
-                QueryResult elemento = new QueryResult();
-                for (int i=1; i<=numberOfColumns; i++) {
-                	ResultModel rModel = queryObj.getResult(i);
-
-                	String columnName = metaData.getColumnName(i);
-                    if (rModel != null && rModel.getResultName() != null) {
-                    	columnName = rModel.getResultName();
-                    }
-                    int dataType = metaData.getColumnType(i);
-                    if (rModel != null && rModel.getResultType() != Types.JAVA_OBJECT) {
-                    	dataType = rModel.getResultType();
-                    }
-                    if (dataType == Types.TIMESTAMP) {
-                    	elemento.set(columnName,rs.getTimestamp(i));
-                    } else {
-                    	elemento.set(columnName,rs.getObject(i));
-                    }
-                }
-                col.add(elemento);
+                col.add(fillResult(queryObj, rs));
             }
 
             setTotalLastQuery(col.size());
-            logger.debug("Total Registros : " + getTotalLastQuery());
+            logger.trace("Number of Records : " + getTotalLastQuery());
 
             return col;
 
         } catch (SQLException e) {
             logger.error("DataBase Error :",e);
-            transactionMode = false; 
-            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
+            throw new DAOException("Unexpected Error Query ("+query+") : " + e.getMessage(),"error.DAO.database",e.getMessage());
         } catch (Exception ex) {
             logger.error("Error :",ex);
-            transactionMode = false; 
-            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",ex.getMessage());
+            throw new DAOException("Unexpected Error Query ("+query+") : " + ex.getMessage(),"error.DAO.database",ex.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (ps != null) ps.close();
-                if (!transactionMode && con != null) con.close();
+                if (!transactionMode) close();
             } catch (SQLException e) {
             	logger.fatal("error.DAO.database", e);
-                throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
+                throw new DAOException("Unexpected Error Query ("+query+") : " + e.getMessage(),"error.DAO.database",e.getMessage());
             }
         }
     }
@@ -258,24 +324,22 @@ public class DataAccessObject
      * @param firstElement first element of the block
      * @param nofElements block size
      */
-    public Collection executeQuery(String query, QueryParameter params, int firstElement, int nofElements)
+    public Collection<QueryResult> executeQuery(String query, QueryParameter params, int firstElement, int nofElements)
         throws DAOException
     {
         PreparedStatement ps = null;
         ResultSet rs = null;
-        ArrayList col = new ArrayList();
+        ArrayList<QueryResult> col = new ArrayList<QueryResult>();
 
-		Query queryObj = getModel().getQuery(query);
-		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
-			queryObj = (Query) conditionalQueries.get(query);
-		}
+		QueryModel queryObj = getQuery(query);
 
 		String sql = queryObj.getStatement(params.getVariables());
-        logger.debug(sql);
+		logger.debug("Executing " + query);
+        logger.trace(sql);
 
         try {
     		if (con == null || con.isClosed()) {
-    			con = DataSource.getInstance().getConnection(getModel().getDataSource());
+    			con = DataSource.getConnection(getDataSource(), model.getName() , query);
     		}
 
             ps = con.prepareStatement(sql,ResultSet.TYPE_SCROLL_INSENSITIVE,ResultSet.CONCUR_READ_ONLY);
@@ -284,56 +348,33 @@ public class DataAccessObject
 
             rs = ps.executeQuery();
 
-            ResultSetMetaData metaData = rs.getMetaData();
-            int numberOfColumns = metaData.getColumnCount();
-
             if ((rs != null) && (rs.absolute(firstElement))) {
 
                 do {
-                    QueryResult elemento = new QueryResult();
-                    for (int i=1; i<=numberOfColumns; i++) {
-                    	ResultModel rModel = queryObj.getResult(i);
-
-                    	String columnName = metaData.getColumnName(i);
-                        if (rModel != null && rModel.getResultName() != null) {
-                        	columnName = rModel.getResultName();
-                        }
-                        int dataType = metaData.getColumnType(i);
-                        if (rModel != null && rModel.getResultType() != Types.JAVA_OBJECT) {
-                        	dataType = rModel.getResultType();
-                        }
-                       if (dataType == Types.TIMESTAMP) {
-                        	elemento.set(columnName,rs.getTimestamp(i));
-                        } else {
-                        	elemento.set(columnName,rs.getObject(i));
-                        }
-                    }
-                    col.add(elemento);
+                    col.add(fillResult(queryObj, rs));                    
                 } while(rs.next() && (rs.getRow() < firstElement + nofElements));
 
-                logger.debug("Ultimo registro recuperado : " + rs.getRow());
+                logger.trace("Last retrieved record : " + rs.getRow());
                 rs.last();
                 setTotalLastQuery(rs.getRow());
-                logger.debug("Total Registros : " + getTotalLastQuery());
+                logger.trace("Number of records : " + getTotalLastQuery());
             }
 
             return col;
 
         } catch (SQLException e) {
             logger.error("DataBase Error :",e);
-            transactionMode = false; 
-            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
+            throw new DAOException("Unexpected Error Query ("+query+") : " + e.getMessage(),"error.DAO.database",e.getMessage());
         } catch (Exception ex) {
             logger.error("Error :",ex);
-            transactionMode = false; 
-            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",ex.getMessage());
+            throw new DAOException("Unexpected Error Query ("+query+") : " + ex.getMessage(),"error.DAO.database",ex.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (ps != null) ps.close();
-                if (!transactionMode && con != null) con.close();
+                if (!transactionMode) close();
             } catch (SQLException e) {
-                throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
+                throw new DAOException("Unexpected Error Query ("+query+") : " + e.getMessage(),"error.DAO.database",e.getMessage());
             }
         }
 
@@ -353,17 +394,15 @@ public class DataAccessObject
 		ResultSet rs = null;
         QueryResult result = null;
 
-		Query queryObj = getModel().getQuery(query);
-		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
-			queryObj = (Query) conditionalQueries.get(query);
-		}
+		QueryModel queryObj = getQuery(query);
 
 		String sql = queryObj.getStatement(params.getVariables());
-		logger.debug(sql);
+		logger.debug("Executing " + query);
+		logger.trace(sql);
 
 		try {
     		if (con == null || con.isClosed()) {
-    			con = DataSource.getInstance().getConnection(getModel().getDataSource());
+    			con = DataSource.getConnection(getDataSource(), model.getName() , query);
     		}
 
             ps = con.prepareStatement(sql);
@@ -372,51 +411,29 @@ public class DataAccessObject
 
             rs = ps.executeQuery();
 
-            ResultSetMetaData metaData = rs.getMetaData();
-            int numberOfColumns = metaData.getColumnCount();
-
             if(rs.next()) {
-                result = new QueryResult();
-                for (int i=1; i<=numberOfColumns; i++) {
-                	ResultModel rModel = queryObj.getResult(i);
-
-                	String columnName = metaData.getColumnName(i);
-                    if (rModel != null && rModel.getResultName() != null) {
-                    	columnName = rModel.getResultName();
-                    }
-                    int dataType = metaData.getColumnType(i);
-                    if (rModel != null && rModel.getResultType() != Types.JAVA_OBJECT) {
-                    	dataType = rModel.getResultType();
-                    }
-                    if (dataType == Types.TIMESTAMP) {
-                    	result.set(columnName,rs.getTimestamp(i));
-                    } else {
-                    	result.set(columnName,rs.getObject(i));
-                    }
-                }
+                result = fillResult(queryObj, rs);
             }
 
             setTotalLastQuery((result!=null)?1:0);
-            logger.debug("Total Registros : " + getTotalLastQuery());
+            logger.trace("Number of records : " + getTotalLastQuery());
 
             return result;
 
         } catch (SQLException e) {
             logger.error("DataBase Error :",e);
-            transactionMode = false; 
-            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
+            throw new DAOException("Unexpected Error Query ("+query+") : " + e.getMessage(),"error.DAO.database",e.getMessage());
         } catch (Exception ex) {
             logger.error("Error :",ex);
-            transactionMode = false; 
-            throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",ex.getMessage());
+            throw new DAOException("Unexpected Error Query ("+query+") : " + ex.getMessage(),"error.DAO.database",ex.getMessage());
         } finally {
             try {
                 if (rs != null) rs.close();
                 if (ps != null) ps.close();
-                if (!transactionMode && con != null) con.close();
+                if (!transactionMode) close();
             } catch (SQLException e) {
             	logger.fatal("error.DAO.database", e);
-                throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database",e.getMessage());
+                throw new DAOException("Unexpected Error Query ("+query+") : " + e.getMessage(),"error.DAO.database",e.getMessage());
             }
         }
     }
@@ -424,10 +441,10 @@ public class DataAccessObject
     /**
      * Overwrite of the method in case you don't need parameters for the query
      * @param query name of the query defined
-     * @return
+     * @return Collection of QueryResult
      * @throws DAOException
      */
-    public Collection executeQuery(String query)
+    public Collection<QueryResult> executeQuery(String query)
     	throws DAOException
     {
     	return executeQuery(query, new QueryParameter());
@@ -438,10 +455,10 @@ public class DataAccessObject
      * @deprecated Use {@link #executeQuery(String, QueryParameter)} instead
      * @param query name of the query defined
      * @param params
-     * @return
+     * @return Collection of QueryResult
      * @throws DAOException
      */
-    public Collection executeQuery(String query, Object[] params)
+    public Collection<QueryResult> executeQuery(String query, Object[] params)
     	throws DAOException
     {
     	QueryParameter qp = new QueryParameter();
@@ -458,10 +475,10 @@ public class DataAccessObject
      * @param query name of the query defined
      * @param firstElement
      * @param nofElements
-     * @return
+     * @return Collection of QueryResult
      * @throws DAOException
      */
-    public Collection executeQuery(String query, int firstElement, int nofElements)
+    public Collection<QueryResult> executeQuery(String query, int firstElement, int nofElements)
     	throws DAOException
     {
     	return executeQuery(query, new QueryParameter(), firstElement, nofElements);
@@ -474,10 +491,10 @@ public class DataAccessObject
      * @param params
      * @param firstElement
      * @param nofElements
-     * @return
+     * @return Collection of QueryResult
      * @throws DAOException
      */
-    public Collection executeQuery(String query, Object[] params, int firstElement, int nofElements)
+    public Collection<QueryResult> executeQuery(String query, Object[] params, int firstElement, int nofElements)
 		throws DAOException
    	{
     	QueryParameter qp = new QueryParameter();
@@ -492,7 +509,7 @@ public class DataAccessObject
     /**
      * Execute a query returning a single result
      * @param query name of the query defined
-     * @return
+     * @return QueryResult
      * @throws DAOException
      */
     public QueryResult executeQuerySingle(String query)
@@ -505,7 +522,7 @@ public class DataAccessObject
      * Execute a query returning a single result
      * @deprecated Use @link #executeQuerySingle(String, QueryParameter) instead
      * @param query name of the query defined
-     * @return
+     * @return QueryResult
      * @throws DAOException
      */
     public QueryResult executeQuerySingle(String query, Object[] params)
@@ -519,30 +536,25 @@ public class DataAccessObject
     	}
     	return executeQuerySingle(query, qp);
     }
-    
+
     /**
      * Method to execute update, insert and delete operation
-     * @param query query name
+     * @param queryObj query object
      * @param params parameters
      * @return int number of updated rows
      * @throws DAOException
      */
-    public int executeUpdate(String query, QueryParameter params)
-			throws DAOException 
-	{
+    private int executeUpdate(QueryModel queryObj, QueryParameter params)
+    	throws DAOException
+    {
 		PreparedStatement ps = null;
-
-		Query queryObj = getModel().getQuery(query);
-		if (conditionalQueries != null && conditionalQueries.containsKey(query)) {
-			queryObj = (Query) conditionalQueries.get(query);
-		}
-
-		String sql = queryObj.getStatement(params.getVariables());
-		logger.debug(sql);
+		String sql = queryObj.getStatement(params!=null?params.getVariables():null);
+		logger.debug("Executing " + queryObj.getName() );
+		logger.trace(sql);
 
 		try {
 			if (con == null || con.isClosed()) {
-				con = DataSource.getInstance().getConnection(getModel().getDataSource());
+				con = DataSource.getConnection(getDataSource(), model.getName() ,queryObj.getName());
 			}
 
 			ps = con.prepareStatement(sql);
@@ -554,30 +566,41 @@ public class DataAccessObject
 		} catch (SQLException e) {
 			logger.error("DataBase Error :", e);
 			if (transactionMode) rollback();
-			transactionMode = false; 
-			throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", e.getMessage());
+			throw new DAOException("Unexpected Error Query ("+queryObj.getName()+") : " + e.getMessage(),"error.DAO.database", e.getMessage());
 		} catch (Exception ex) {
 			logger.error("Error :", ex);
 			if (transactionMode) rollback();
-			transactionMode = false; 
-			throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", ex.getMessage());
+			throw new DAOException("Unexpected Error Query ("+queryObj.getName()+") : " + ex.getMessage(),"error.DAO.database", ex.getMessage());
 		} finally {
 			try {
-				if (!transactionMode) con.commit();
-				if (ps != null)
-					ps.close();
-				if (!transactionMode && con != null)
-					con.close();
+				if (!transactionMode) commit();
+				if (ps != null)       ps.close();
+				if (!transactionMode) close();
 			} catch (SQLException e) {
-				throw new DAOException("Unexpected Error Query ("+query+")","error.DAO.database", e.getMessage());
+				throw new DAOException("Unexpected Error Query ("+queryObj.getName()+") : " + e.getMessage(),"error.DAO.database", e.getMessage());
 			}
 		}
+    }
+    
+    /**
+     * Method to execute update, insert and delete operation
+     * @param query query name
+     * @param params parameters
+     * @return int number of updated rows
+     * @throws DAOException
+     */
+    public int executeUpdate(String query, QueryParameter params)
+			throws DAOException 
+	{
+		QueryModel queryObj = getQuery(query);
+
+		return executeUpdate(queryObj, params);
 	}
 
     /**
      * Execute update, insert and delete operation
      * @param query
-     * @return
+     * @return number of successful updates
      * @throws DAOException
      */
     public int executeUpdate(String query) 
@@ -591,7 +614,7 @@ public class DataAccessObject
      * @deprecated Use @link #executeUpdate(String, QueryParameter) instead
      * @param query
      * @param params
-     * @return
+     * @return number of successful updates
      * @throws DAOException
      */
     public int executeUpdate(String query, Object[] params)
@@ -626,25 +649,67 @@ public class DataAccessObject
 	/**
 	 * If transactionMode is set to true, it means that the DAO will NOT close
 	 * the connection after the statements, and will take care of rollbacks.
-	 * However, you must close the connection at the end of your transaction.
+	 * However, you must commit the connection at the end of your transaction.
 	 * @param transactionMode The transactionMode to set.
 	 */
 	public void setTransactionMode(boolean transactionMode) {
 		this.transactionMode = transactionMode;
+		if (transactionMode) {
+			try {
+				if (con == null || con.isClosed()) {
+					con = DataSource.getConnection(getDataSource(), model.getName(), "EFREET (setTransactionMode)");
+				}
+			} catch (Exception e) {
+				close();
+			}
+			try {
+		    	if (con.getAutoCommit()) {
+		    		con.setAutoCommit(false);
+		    	}
+			} catch (Exception e) {
+				logger.error("Cant change auto commit flag", e);
+			}			
+		} else {
+			// Commit and close the connection
+			try {
+				commit();
+			} catch (Exception e) {
+				close();
+			}
+		}
 	}
+	
+	/**
+	 * Allows a DAO to share a connection with another DAO in transaction mode
+	 * The primary DAO must be in transaction mode
+	 * @param primaryDao
+	 */
+	public void shareTransaction(DataAccessObject primaryDao) {
+		
+		if (primaryDao != null && primaryDao.isTransactionMode()) {
+			close();
+			setConnection(primaryDao.getConnection());
+			setTransactionMode(true);
+		}
+		
+	}
+	
 	/**
      * Commit the transaction
+     * Automatically closes the connection to prevent connection leak
      */
     public boolean commit()
         throws SQLException, DAOException
     {
         try {
             if ((this.con == null) || (this.con.isClosed())) return false;
-            this.con.commit();
+            if (!con.getAutoCommit()) this.con.commit();
             return true;
         } catch(SQLException e) {
             logger.error("Commit Error : ",e);
             return false;
+        } finally {
+        	close();
         }
     }
 
@@ -652,6 +717,7 @@ public class DataAccessObject
      * Rollback on the transaction. Since this method is supposed to
      * be called often from inside catch statements, it does not throws
      * an exception , instead it returns false if something went wrong.
+     * Automatically closes the connection to prevent connection leak
      */
     public boolean rollback()
     {
@@ -662,6 +728,8 @@ public class DataAccessObject
         } catch(SQLException e) {
             logger.error("Rollback Error : ",e);
             return false;
+        } finally {
+        	close();
         }
     }
 
@@ -674,6 +742,13 @@ public class DataAccessObject
     {
         try {
             if ((this.con == null) || (this.con.isClosed())) return false;
+			try {
+		    	if (con !=null && !con.getAutoCommit()) {
+		    		con.setAutoCommit(true);
+		    	}
+			} catch (Exception e) {
+				logger.error("Cant change auto commit flag", e);
+			}			            
             this.con.close();
             return true;
         } catch(SQLException e) {
@@ -696,18 +771,23 @@ public class DataAccessObject
      * @param conditional conditional name
      */
     public void appendConditionalToQuery(String queryName, String conditional) {
+    	appendConditionalToQuery(queryName, conditional, null);
+    }
     	
-    	Query query = getModel().getQuery(queryName);
+    public void appendConditionalToQuery(String queryName, String conditional, QueryParameter condtParameters) {
+    	
+    	QueryModel query = getModel().getQuery(queryName);
+    	
     	if (conditionalQueries != null && conditionalQueries.containsKey(queryName)) {
-    		query = (Query) conditionalQueries.get(queryName);
+    		query = conditionalQueries.get(queryName);
     	}
     	
-    	Query condt = getModel().getQuery(conditional);
+    	QueryModel condt = getModel().getQuery(conditional);
     	
     	if (query != null && condt != null) {
     		try {
-    			query = (Query) query.clone();
-    			condt = (Query) condt.clone();
+    			query = query.clone();
+    			condt = condt.clone();
     		} catch (CloneNotSupportedException e) {
 				query = null;
 				condt = null;
@@ -716,28 +796,28 @@ public class DataAccessObject
     	
     	if (query != null && condt != null) {
     		if (conditionalQueries == null) {
-    			conditionalQueries = new HashMap();
+    			conditionalQueries = new HashMap<String, QueryModel>();
     		}
     		String qStatement = query.getStatement();
     		String cStatement = condt.getStatement();
     		if (qStatement != null && cStatement != null) {
     			query.setStatement(qStatement.concat(" ".concat(cStatement)));
     		}
-    		Vector qParameters = query.getParameters();
-    		Vector cParameters = condt.getParameters();
+    		
+    		int qParametersSize = query.parameterSize();
+    		SortedSet<ParameterModel> cParameters = condt.getParameters();
     		if (cParameters != null) {
-        		if (qParameters == null) {
-        			qParameters = new Vector();
-        			qParameters.add(null);
-        		}
-    			Iterator iter = cParameters.iterator();
+    			Iterator<ParameterModel> iter = cParameters.iterator();
     			while (iter != null && iter.hasNext()) {
-    				Object o = iter.next();
+    				ParameterModel o = iter.next();
     				if (o != null) {
-    					qParameters.add(o);
+    					o.setParamIndex(o.getParamIndex() + qParametersSize);
+    					if (condtParameters != null) {
+    						o.setStaticValue(condtParameters.get(o.getParamName()));
+    					}
+    					query.addParameter(o);
     				}
     			}
-    			query.setParameters(qParameters);
     		}
     		conditionalQueries.put(query.getName(), query);
     	}    		
@@ -761,4 +841,117 @@ public class DataAccessObject
     		conditionalQueries.clear();
     	}
     }
+    
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // Batch Statements 
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    // ----------------------------------------------------------------------
+    /**
+     * Add a query to a batch of statements to be processed
+     * @param queryName Query descriptor
+     */
+    public void addBatch(String queryName) {
+    	addBatch(queryName, null);
+    }
+    
+    /**
+     * Add a query to a batch of statements with its parameters
+     * @param queryName
+     * @param params
+     */
+    public void addBatch(String queryName, QueryParameter params) {
+
+    	if (batchQueries == null) {
+    		batchQueries = new ArrayList<QueryInBatch>();
+    	}
+
+    	QueryInBatch qryWparam = new QueryInBatch();
+    	qryWparam.setQueryName(queryName);
+    	qryWparam.setParameters(params);
+
+    	try {
+    		QueryModel queryObj = getQuery(queryName);
+    		qryWparam.setQuery(queryObj);
+    	} catch (Exception e) {
+			logger.error("Batch Error : ",e);
+		}
+    	
+    	batchQueries.add(qryWparam);
+    }
+    
+    /**
+     * Clear the batch of statements to be executed
+     */
+    public void clearBatch() {
+    	if (batchQueries != null) {
+    		batchQueries.clear();
+    	}
+    }
+    
+    /**
+     * Execute a batch of statements sequentially in the same transaction
+     * @throws DAOException error
+     */
+    public int[] executeBatch() throws DAOException {
+    	return executeBatch(0);
+    }
+
+    /**
+     * Execute a batch of statements sequentially in the same transaction
+     * WARNING - This method doesn't guarantee integrity since a commit will
+     * be made at each check point defined by the number of transactions
+     * executed so far.
+     * @param commitPoint number of updates to be executed before a commit check, 
+     *        a 0 is interpreted as no commit point 
+     * @throws DAOException error
+     */
+    public int[] executeBatch(int commitPoint) throws DAOException {
+
+    	ArrayList<Integer> respArray = new ArrayList<Integer>();
+
+    	int checkPoint = 0;
+    	boolean prevTransMode = this.transactionMode;
+		setTransactionMode(true);
+    	if (batchQueries != null && !batchQueries.isEmpty()) {
+    		Iterator<QueryInBatch> iterQry = batchQueries.iterator();
+    		while (iterQry != null && iterQry.hasNext()) {
+    			QueryInBatch qryToBeExec = (QueryInBatch) iterQry.next();
+    			int result = executeUpdate(qryToBeExec.getQuery(), qryToBeExec.getParameters());
+    			respArray.add(new Integer(result));
+    			// Partial commit
+    			checkPoint++;
+    			if (commitPoint > 0 && checkPoint >= commitPoint) {
+    				try {
+    					commit();
+    					checkPoint = 0;
+    				} catch (SQLException e) {
+    					rollback();
+    					setTransactionMode(prevTransMode);
+    					throw new DAOException("Unexpected Error Batch on commit : " + e.getMessage(),"error.DAO.database", e.getMessage());
+					}
+    			}
+    		}
+    	}
+    	if (!prevTransMode || commitPoint > 0) { 
+	    	try {
+	    		commit();
+			} catch (SQLException e) {
+				rollback();
+				setTransactionMode(prevTransMode);
+				throw new DAOException("Unexpected Error Batch on commit : " + e.getMessage(),"error.DAO.database", e.getMessage());
+			}
+    	}
+		setTransactionMode(prevTransMode);
+    	
+    	// Converting Array list to int[]
+    	int[] resp = new int[respArray.size()];
+    	for (int r=0; r < respArray.size(); r++) {
+    		resp[r] = ((Integer) respArray.get(r)).intValue();
+    	}
+    	return resp;
+    }
+    
 }

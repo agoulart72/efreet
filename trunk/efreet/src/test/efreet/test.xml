@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE dao PUBLIC "DTD for Efreet DAO Configuration File 1.0//EN" "efreet-dao_1_0.dtd">
+
+<dao datasource="oracle">
+
+<query name="test1">
+	<![CDATA[
+	select r from t where p = ?
+	]]>
+    <parameter index="1" size="1" type="number">param1</parameter>
+    <result index="1" type="number">result1</result>	
+</query>
+
+<query name="test2">
+	<![CDATA[
+	select r from t where p = #{param1<NUMBER>}
+	]]>
+    <result index="1" type="number">result1</result>	
+</query>
+
+<query name="test3">
+	<![CDATA[
+	select r from t where p = ?
+	]]>
+    <parameter index="1" size="1" type="number">param1</parameter>
+    <parameter index="2" size="1" type="number">erro1</parameter>
+    <result index="1" type="number">result1</result>	
+</query>
+
+<query name="test4">
+	<![CDATA[
+	select r from t where p = #{param1<NUMBER>}
+	]]>
+    <parameter index="1" size="1" type="number">erro1</parameter>
+    <result index="1" type="number">result1</result>	
+</query>
+
+<query name="test5">
+	<![CDATA[
+	select r from t where p = ? and q = #{param2<CHAR>}
+	]]>
+    <parameter index="1" size="1" type="number">param1</parameter>
+    <result index="1" type="number">result1</result>	
+</query>
+
+<query name="test6">
+	<![CDATA[
+	select r from t where p = #{param1<NUMBER>} and q = #{param2<CHAR>}
+	]]>
+    <result index="1" type="number">result1</result>	
+</query>
+
+</dao>
