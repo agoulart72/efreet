@@ -9,19 +9,20 @@ import java.util.Vector;
 /**
  * This class is used to pass parameters for the query
  */
-public class QueryParameter {
+public class QueryParameter implements Cloneable {
 
-	private Vector values = null;
-	private Hashtable parameters = null;
-	private Hashtable variables = null;
+	protected Vector<Object> values = null;
+	protected Hashtable<String, Object> parameters = null;
+	protected Hashtable<String, String> variables = null;
 	
 	/**
 	 * Main method to add parameters
 	 * @param value object containing the value
 	 */
+	@Deprecated
 	public void add(Object value) {
 		// Instancia Vetor de Valores deste Objeto
-		if (this.values == null) values = new Vector();
+		if (this.values == null) values = new Vector<Object>();
 
 		if (value == null) value = new NullObject(); 
 		
@@ -35,7 +36,7 @@ public class QueryParameter {
 	 */
 	public void put(String key, Object value) {
 		// Instancia Hash de Valores para parametros
-		if (this.parameters == null) this.parameters = new Hashtable();
+		if (this.parameters == null) this.parameters = new Hashtable<String, Object>();
 		
 		if (value == null) value = new NullObject();
 		
@@ -47,13 +48,21 @@ public class QueryParameter {
     /**
      * Add Methods
      */
+	@Deprecated
     public void add(boolean param) { add(new Boolean(param)); }
+	@Deprecated
     public void add(byte param)    { add(new Byte(param)); }
+	@Deprecated
     public void add(char param)    { add(new Character(param)); }
+	@Deprecated
     public void add(short param)   { add(new Short(param)); }
+	@Deprecated
     public void add(int param)     { add(new Integer(param)); }
+	@Deprecated
     public void add(long param)    { add(new Long(param)); }
+	@Deprecated
     public void add(float param)   { add(new Float(param)); }
+	@Deprecated
     public void add(double param)  { add(new Double(param)); }
 
     /**
@@ -62,6 +71,7 @@ public class QueryParameter {
      * and false is anything else, including null
      * @param param string value
      */
+	@Deprecated
     public void addBoolean(String param) {
     	if (param != null) {
     		if ("true".equalsIgnoreCase(param) ||
@@ -81,6 +91,7 @@ public class QueryParameter {
      * Allows you to add a string as a byte parameter
      * @param param string
      */
+	@Deprecated
     public void addByte(String param) throws ParseException {
     	if (param == null) add(param); else add (new Byte(param));
     }
@@ -89,6 +100,7 @@ public class QueryParameter {
      * gets only the first char of the string 
      * @param param string
      */
+	@Deprecated
     public void addChar(String param) { 
     	if (param == null) add(param); else	
     	add(new Character(param.charAt(0))); 
@@ -97,6 +109,7 @@ public class QueryParameter {
      * Allows you to add a string as a short parameter
      * @param param string
      */
+	@Deprecated
     public void addShort(String param) throws ParseException { 
     	if (param == null) add(param); else	add(new Short(param)); 
     }
@@ -104,6 +117,7 @@ public class QueryParameter {
      * Allows you to add a string as an int parameter
      * @param param string
      */
+	@Deprecated
     public void addInt(String param) throws ParseException { 
     	if (param == null) add(param); else	add(new Integer(param)); 
     }
@@ -111,6 +125,7 @@ public class QueryParameter {
      * Allows you to add a string as a long parameter
      * @param param string
      */
+	@Deprecated
     public void addLong(String param) throws ParseException { 
     	if (param == null) add(param); else	add(new Long(param)); 
     }
@@ -118,6 +133,7 @@ public class QueryParameter {
      * Allows you to add a string as a float parameter
      * @param param string
      */
+	@Deprecated
     public void addFloat(String param) throws ParseException { 
     	if (param == null) add(param); else	add(new Float(param)); 
     }
@@ -125,6 +141,7 @@ public class QueryParameter {
      * Allows you to add a string as a double parameter
      * @param param string
      */
+	@Deprecated
     public void addDouble(String param) throws ParseException { 
     	if (param == null) add(param); else	add(new Double(param)); 
     }
@@ -159,6 +176,7 @@ public class QueryParameter {
      * @param param string
      * @param format format
      */
+	@Deprecated
     public void addDate(String param, String format) throws ParseException {
     	if (param == null) add(param); else {
     		SimpleDateFormat sdft = new SimpleDateFormat(format);
@@ -307,7 +325,7 @@ public class QueryParameter {
     public void setVariable(String key, String value) {
     	if (key != null) {
     		if (variables == null) {
-    			variables = new Hashtable();
+    			variables = new Hashtable<String, String>();
     		}
     		if (value != null) {
     			variables.put(key, value);
@@ -321,7 +339,7 @@ public class QueryParameter {
      * Return the Variables in a Hashtable
      * @return Hashtable of variables
      */
-    public Hashtable getVariables() {
+    public Hashtable<String, String> getVariables() {
     	return this.variables;
     }
     
@@ -347,7 +365,7 @@ public class QueryParameter {
 	 * Return the parameter set of keys and values
 	 * @return the complete parameters hash
 	 */
-	public Hashtable getParametersHash() {
+	public Hashtable<String, Object> getParametersHash() {
 		return this.parameters;
 	}
 	
@@ -371,4 +389,41 @@ public class QueryParameter {
 	 */
 	private class NullObject { }
 
+	/**
+	 * @see java.lang.Object#toString()
+	 * @return visual representation
+	 */
+	public String toString() {
+		
+		String repres = "";
+		if (this.parameters != null) repres = "parameters = {" + this.parameters.toString() + "};";
+		if (this.values != null) repres += "values = {" + this.values.toString() + "};";
+		if (this.variables != null) repres += "variables = {" + this.variables.toString() + "};";
+		
+		return repres;
+	}
+
+	/**
+	 * @see java.lang.Cloneable
+	 * @return a clone
+	 */
+	public QueryParameter clone() {
+		QueryParameter ret = new QueryParameter();
+		if (values != null) {
+			for (Object val : values) {
+				ret.add(val);
+			}
+		}
+		if (parameters != null) {
+			for (String pKey : parameters.keySet()) {
+				ret.put(pKey, get(pKey));
+			}
+		}
+		if (variables != null) {
+			for (String vKey : variables.keySet()) {
+				ret.setVariable(vKey, variables.get(vKey));
+			}
+		}
+		return ret;
+	}
 }

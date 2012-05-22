@@ -1,17 +1,21 @@
-/**
- * 
- */
 package test.efreet;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.utopia.efreet.adapter.PrimaryKey;
 
 /**
  * @author Adriano M Goulart
- * @version $Id: BeanTest.java,v 1.1 2007-01-30 18:14:57 agoulart Exp $
+ * @version $Id: BeanTest.java,v 1.2 2012-05-22 13:32:23 agoulart Exp $
  * 
  */
 public class BeanTest {
 
+	@PrimaryKey private BigDecimal propBD1;
+	private BigDecimal propBD2;
+	
 	private int propInt1;
 	private int propInt2;
 	
@@ -21,8 +25,13 @@ public class BeanTest {
 	private java.util.Date propDt1;
 	private java.util.Date propDt2;
 	
-	private BigDecimal propBD1;
-	private BigDecimal propBD2;
+	private String[][] propArr1;
+	
+	public String noAccessorProp;
+	
+	private BeanTest innerBean;
+	
+	private List<BeanChildTest> children;
 	
 	/**
 	 * @return the propBD1
@@ -120,6 +129,60 @@ public class BeanTest {
 	public void setPropStr2(String propStr2) {
 		this.propStr2 = propStr2;
 	}
+	/**
+	 * @return the propArr1
+	 */
+	public String[][] getPropArr1() {
+		return propArr1;
+	}
+	/**
+	 * @param propArr1 the propArr1 to set
+	 */
+	public void setPropArr1(String[][] propArr1) {
+		this.propArr1 = propArr1;
+	}
+	/**
+	 * @return the innerBean
+	 */
+	public BeanTest getInnerBean() {
+		return innerBean;
+	}
+	/**
+	 * @param innerBean the innerBean to set
+	 */
+	public void setInnerBean(BeanTest innerBean) {
+		this.innerBean = innerBean;
+	}
+	/**
+	 * @return the children
+	 */
+	public List<BeanChildTest> getChildren() {
+		return children;
+	}
+	/**
+	 * @param children the children to set
+	 */
+	public void setChildren(List<BeanChildTest> children) {
+		this.children = children;
+	}
 
+	public void addToChildren(BeanChildTest child) {
+		if (children == null) {
+			children = new ArrayList<BeanChildTest>();
+		}
+		children.add(child);
+	}
+	
+	public String toString() {
+				
+		return "BD1@PK=" + propBD1 + " BD2=" + propBD2
+			+ " Int1=" + propInt1 + " Int2=" + propInt2
+			+ " Str1=" + propStr1 + " Str2=" + propStr2
+			+ " Dt1=" + propDt1 + " Dt2=" + propDt2
+			+ " propArr1=[" + propArr1 + "]"
+			+ " noAccessorProp=" + noAccessorProp
+			+ " innerBean=[" + String.valueOf(innerBean) + "]"
+			+ " children={" + String.valueOf(children) + "}";		
+	}
 	
 }

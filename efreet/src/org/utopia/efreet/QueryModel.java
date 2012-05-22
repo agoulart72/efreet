@@ -1,25 +1,25 @@
 package org.utopia.efreet;
 
 import java.sql.Types;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.Hashtable;
+import java.util.Iterator;
 import java.util.SortedSet;
-import java.util.Vector;
+import java.util.TreeSet;
 
 /**
  * This class represents a query statement to be called from a DAO
  */
 
-public class Query implements Cloneable
+public class QueryModel implements Cloneable
 {
     protected String queryName = null;
     protected int queryType = 0;
     protected String queryStatement = null;
-    protected Vector<Object> parameters = null;
-    protected Vector<Object> results = null;
 
-    protected SortedSet<ParameterModel> paramSet = null;
-    protected SortedSet<ResultModel> resultSet = null;
+    protected SortedSet<ParameterModel> parameters = null;
+    protected SortedSet<ResultModel> results = null;
     
     // Param Type Constants
     // as defined by java.sql.Types
@@ -75,7 +75,7 @@ public class Query implements Cloneable
      */
     public String getStatement(Hashtable<String, String> variables) {
     	
-    	String retStatement = this.queryStatement; 
+    	String retStatement = getStatement(); 
     	
     	if (variables != null) {
     		Enumeration<String> enm = variables.keys();
@@ -87,33 +87,23 @@ public class Query implements Cloneable
     		}
     	}
     	
+    	// Replace all ocurrences of the new type of parameter
+    	retStatement = retStatement.replaceAll("\\#\\{[^\\}]*\\}", "?");
+    	
     	return retStatement;
-    }
-    
-    /**
-     * Add a parameter to the query
-     * @deprecated use {@link #addParameterAt(ParameterModel, int)} instead
-     * @param pType Type of parameter (possible values Query.P_NUMERIC, Query.P_CHAR, Query.P_DATE )
-     */
-    public void addParameter(int pType) {
-        if (parameters == null) parameters = new Vector<Object>();
-        parameters.add(new Integer(pType));
     }
 
     /**
-     * Add a parameter model to the query
-     * @param pm parameter model
-     * @param pos position in the vector
+     * Add a Parameter Model to the QueryModel
+     * @param pm Parameter Model to be added
      */
-    public void addParameterAt(ParameterModel pm, int pos) {
-    	if (parameters == null) parameters = new Vector<Object>();
-    	if (pos >= parameters.size()) {
-    		parameters.setSize(pos + 1);
-    		parameters.ensureCapacity(pos + 1);
+    public void addParameter(ParameterModel pm) {
+    	if (parameters ==null) {
+    		parameters = Collections.synchronizedSortedSet(new TreeSet<ParameterModel>());
     	}
-    	parameters.setElementAt(pm, pos);
+    	parameters.add(pm);
     }
-    
+        
     /**
      * Retrieve the number of parameters
      * @return Number of parameters
@@ -123,73 +113,51 @@ public class Query implements Cloneable
         return parameters.size();
     }
 
+    public ParameterModel getParameter(int pos) {
+    	ParameterModel pm = null;
+    	if (parameters != null) {
+    		for (ParameterModel pmi : parameters) {
+    			if (pmi.getParamIndex() == pos) {
+    				pm = pmi;
+    				break;
+    			}
+    		}
+    	}
+    	return pm;
+    }
+    
     /**
      * Retrieve the type of parameter
      * @param pos Parameter position in the query
      * @return parameter type (possible values possible values Types.JAVA_OBJECT, Types.NUMERIC, Types.CHAR, Types.DATE, Types.TIME, Types.TIMESTAMP )
      */
-    public int getParameter(int pos) {
-        if ((parameters != null) && 
-            (pos >= 0 && pos < parameters.size())) {
-            Integer p = (Integer) parameters.get(pos);
-            if (p != null) return p.intValue();
+    public int getParameterType(int pos) {
+    	Integer p = Types.JAVA_OBJECT; 
+    	if (parameters != null)  {
+    		ParameterModel pm = getParameter(pos);
+    		if (pm != null) p = pm.getParamType();
         }
-        return Types.JAVA_OBJECT;
+        return p;
     }
 
     /**
      * @return the whole Parameters Vector
      */
-    public Vector<Object> getParameters() {
+    public SortedSet<ParameterModel> getParameters() {
     	return this.parameters;
     }
     
     /**
-     * Sets the whole Parameters Vector
-     * BEWARE !!! DANGEROUS OPERATION
-     * @param vParams Vector of parameters
+     * Add a result to the query
+     * @param rm Result model
      */
-    public void setParameters(Vector<Object> vParams) {
-    	this.parameters = vParams;
+    public void addResult(ResultModel rm) {
+    	if (results ==null) {
+    		results = Collections.synchronizedSortedSet(new TreeSet<ResultModel>());
+    	}
+        results.add(rm);
     }
     
-    /**
-     * Add a result name to the query
-     * @deprecated use {@link #addResultAt(ResultModel, int)} instead
-     * @param rName Name of the result
-     */
-    public void addResult(String rName) {
-        if (results == null) results = new Vector<Object>();
-        results.add(rName);
-    }
-    
-    /**
-     * Add a result name to the query at a defined position
-     * @deprecated use {@link #addResultAt(ResultModel, int)} instead
-     * @param rName Name of the result
-     */
-    public void addResultAt(String rName, int pos) {
-    	if (results == null) results = new Vector<Object>();
-    	if (pos >= results.size()) {
-    		results.setSize(pos + 1);
-    		results.ensureCapacity(pos + 1);
-    	}
-		results.setElementAt(rName, pos);
-    }
-
-    /**
-     * Add a result name to the query at a defined position
-     * @param rModel Model for the result
-     */
-    public void addResultAt(ResultModel rModel, int pos) {
-    	if (results == null) results = new Vector<Object>();
-    	if (pos >= results.size()) {
-    		results.setSize(pos + 1);
-    		results.ensureCapacity(pos + 1);
-    	}
-		results.setElementAt(rModel, pos);
-    }
-
     /**
      * Retrieve the number of resulting columns that will be retrieved by
      * the query
@@ -206,14 +174,17 @@ public class Query implements Cloneable
      * @return name of the column retrieved
      */
     public ResultModel getResult(int pos) {
-        if ((results != null) && 
-            (pos >= 0 && pos < results.size())) {
-        	Object obj = results.get(pos);
-        	if (obj != null && obj instanceof ResultModel) {
-        		return (ResultModel) obj;
-        	}
+
+    	ResultModel rm = null; 
+    	if (results != null) {
+    		for (ResultModel rmi : results) {
+    			if (rmi.getResultIndex() == pos) {
+    				rm = rmi;
+    				break;
+    			}
+    		}
         }
-        return null;
+        return rm;    	
     }
 
     /**
@@ -222,53 +193,41 @@ public class Query implements Cloneable
      * @return name of the column retrieved
      */
     public String getResultName(int pos) {
-        if ((results != null) && 
-            (pos >= 0 && pos < results.size())) {
-        	Object obj = results.get(pos);
-        	if (obj != null && obj instanceof ResultModel) {
-        		return ((ResultModel) obj).getResultName();
-        	}
-        	// Legacy conversion
-        	if (obj != null && obj instanceof String) {
-        		return (String) results.get(pos);
-        	}
-        }
-        return null;
+    	return getResult(pos).getResultName();
     }
-
+    
+    
     /**
      * @return the whole Results Vector
      */
-    public Vector<Object> getResults() {
+    public SortedSet<ResultModel> getResults() {
     	return this.results;
     }
-    
-    /**
-     * Sets the whole Results Vector
-     * BEWARE !!! DANGEROUS OPERATION
-     * @param vResults
-     */
-    public void setResults(Vector<Object> vResults) {
-    	this.results = vResults;
-    }
-    
-	/* (non-Javadoc)
+        
+	/**
 	 * @see java.lang.Object#clone()
 	 */
-	@SuppressWarnings("unchecked")
-	protected Object clone() throws CloneNotSupportedException {
+	protected QueryModel clone() throws CloneNotSupportedException {
 		
-		Query clone = new Query();
+		QueryModel clone = new QueryModel();
 		clone.setName(this.queryName);
 		clone.setStatement(this.queryStatement);
 		clone.setType(this.queryType);
 		
 		if (this.parameters != null) {
-			clone.parameters = (Vector<Object>) this.parameters.clone();
+			Iterator<ParameterModel> itParam = this.parameters.iterator();
+			while (itParam.hasNext()) {
+				ParameterModel pm = itParam.next(); 
+				if (pm != null) clone.addParameter(pm.clone());
+			}
 		}
 		
 		if (this.results != null) {
-			clone.results = (Vector<Object>) this.results.clone();
+			Iterator<ResultModel> itResult = this.results.iterator();
+			while (itResult.hasNext()) {
+				ResultModel rm = itResult.next(); 
+				if (rm != null) clone.addResult(rm.clone());
+			}
 		}
 		
 		return clone;

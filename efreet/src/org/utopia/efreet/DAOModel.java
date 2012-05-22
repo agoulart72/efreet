@@ -13,24 +13,26 @@ public class DAOModel
     /**
      * List of all queries that can be executed by this DAO
      */
-    protected HashMap queries = null;
+    protected HashMap<String, QueryModel> queries = null;
 
     protected String dataSource = null;
+    
+    protected String name = null;
     
     /**
      * Adds a new query to the collection of queries for this model
      */
-    public void addQuery(Query newQuery)  {
-        if (this.queries == null) this.queries = new HashMap();
+    public void addQuery(QueryModel newQuery)  {
+        if (this.queries == null) this.queries = new HashMap<String, QueryModel>();
         this.queries.put(newQuery.getName(),newQuery);
     }
 
     /**
      * Retrieve query from the model
      */
-    public Query getQuery(String name) {
+    public QueryModel getQuery(String name) {
         if (this.queries == null) return null;
-        return (Query) this.queries.get(name);
+        return (QueryModel) this.queries.get(name);
     }
 
     /**
@@ -47,6 +49,20 @@ public class DAOModel
 	 */
 	public void setDataSource(String dataSource) {
 		this.dataSource = dataSource;
+	}
+
+	/**
+	 * @return the name
+	 */
+	public String getName() {
+		return name;
+	}
+
+	/**
+	 * @param name the name to set
+	 */
+	public void setName(String name) {
+		this.name = name;
 	}
     
 }

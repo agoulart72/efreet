@@ -1,14 +1,12 @@
 package org.utopia.efreet;
 
-import java.sql.Timestamp;
-import java.util.HashMap;
-
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
 import java.math.BigInteger;
-
-//import java.util.Collection;
-//import java.util.ArrayList;
+import java.sql.Timestamp;
 import java.util.Calendar;
+import java.util.HashMap;
+import java.util.Set;
 //import java.util.Date;
 
 /**
@@ -20,16 +18,35 @@ public class QueryResult
 	/**
 	 * WARNING !!! Do not change the values in this hashmap
 	 */
-    protected HashMap values = null;
+    protected HashMap<String, Object> values = null;
 
     /**
+     * Character encoding
+     */
+    private String characterEncoding = null;
+    
+    /**
+	 * @return the characterEncoding
+	 */
+	public String getCharacterEncoding() {
+		return characterEncoding;
+	}
+
+	/**
+	 * @param characterEncoding the characterEncoding to set
+	 */
+	public void setCharacterEncoding(String characterEncoding) {
+		this.characterEncoding = characterEncoding;
+	}
+
+	/**
      * Altera Valores de Colunas
      */
     public void set(String nomeColuna, Object valor) 
 	throws DAOException
     {
 	// Instancia Vetor de Valores deste Objeto
-	if (this.values == null) values = new HashMap();
+	if (this.values == null) values = new HashMap<String, Object>();
 
 	values.put(nomeColuna, valor);
     }
@@ -71,10 +88,21 @@ public class QueryResult
      */
     public String getString(String nomeColuna) throws DAOException 
     { 
-	Object retorno = get(nomeColuna);
-	if (retorno == null) return "";
-	return retorno.toString().trim(); 
+    	return getString(nomeColuna, this.characterEncoding); 
     }
+    public String getString(String nomeColuna, String characterEncoding) throws DAOException
+    {
+    	Object retorno = get(nomeColuna);
+    	if (retorno == null) return "";
+    	if (characterEncoding != null) {
+    		try {
+    			return new String (retorno.toString().trim().getBytes(), characterEncoding);
+    		} catch (UnsupportedEncodingException e) {
+    			throw new DAOException(e.getMessage());
+    		}
+    	}
+    	return retorno.toString().trim(); 
+    }    	
     public boolean getBoolean(String nomeColuna) throws DAOException 
     { 
 	Object retorno = get(nomeColuna);
@@ -278,10 +306,30 @@ public class QueryResult
      * WARNING !!!! Restricted use 
      * @return HashMap
      */
-    protected HashMap getHash() {
+    protected HashMap<String, Object> getHash() {
     	return this.values;
     }
     
+    public Set<String> getKeys() {
+    	if (this.values != null) {
+    		return this.values.keySet();
+    	}
+    	return null;
+    }
+    
+	/**
+	 * @see java.lang.Object#toString()
+	 * @return visual representation
+	 */
+	public String toString() {
+		
+		if (this.values != null) {
+			return this.values.toString();
+		} else {
+			return "";
+		}
+	}
+
 }
 
     

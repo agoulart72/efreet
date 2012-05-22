@@ -64,7 +64,7 @@ public class TestQuery extends TestCase {
 		Query query = new Query();
 		String param = "select * from TABELA where COLUNA = 1 ORDER BY ${TESTE} ";
 		query.setStatement(param);
-		Hashtable variables = new Hashtable();
+		Hashtable<String, String> variables = new Hashtable<String, String>();
 		variables.put("TESTE", "valor");
 		String result = query.getStatement(variables);
 		assertEquals("select * from TABELA where COLUNA = 1 ORDER BY valor ", result);
